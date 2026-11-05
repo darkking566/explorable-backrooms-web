@@ -96,6 +96,11 @@ function soundClick() {
   g.gain.setValueAtTime(.3, t0); g.gain.linearRampToValueAtTime(0, t0 + .08);
   o.connect(g); g.connect(actx.destination); o.start(t0); o.stop(t0 + .09);
 }
+function soundFlush() {
+  if (!actx) return;
+  noiseBurst(450, 1.8, .22, 1, .7, 0);
+  noiseBurst(220, 2.2, .18, 1, .9, .4);
+}
 
 // ---------- the unconfirmed dark figure (person() is in js/assets.js) ----------
 const fig = person("#000", 0, 0); fig.visible = false;
@@ -207,7 +212,7 @@ const MAP_VIEW = {                            // how each level's map is framed 
   map: { x: WS / 2, z: DS / 2, up: DS, back: DS * .9, max: 320, min: 10, mark: 1, tile: 1 },
   station: { x: CX, z: CZ, up: 380, back: 360, max: 800, min: 10, mark: 3, tile: .5 },
   base: { x: BX + BRW / 2, z: BZ + BRD / 2, up: 16, back: 14, max: 60, min: 5, mark: .4, tile: .3 },
-  remodel: { x: RX + RW / 2, z: RZ + RD / 2, up: 95, back: 80, max: 240, min: 10, mark: .8, tile: .6 },
+  remodel: { x: RX + RW / 2, z: RZ + RD / 2, up: 110, back: 95, max: 280, min: 10, mark: .8, tile: .6 },
 };
 const levelBtns = $("mapLevels");
 function setMapLevel(m) {
