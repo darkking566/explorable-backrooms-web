@@ -748,6 +748,7 @@ let mode = "map";                            // "map" (Level 0) or "base" (Alpha
 // ground height under (x, z): the stairwell, sunken 熄燈區 cells, and the thick carpet of the arch rooms
 function floorH(x, z) {
   if (mode === "station") return tsLevel * TS_FH;
+  if (mode === "remodel") return remodelFloorH(x, z);
   if (mode !== "map") return 0;
   if (x >= STX && x < STX + 12 && z >= STZ && z < STZ + 12) {
     const lx = x - STX, lz = z - STZ;

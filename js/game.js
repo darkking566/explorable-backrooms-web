@@ -15,13 +15,7 @@ addEventListener("keydown", e => {
   if (e.code === "KeyR" && (mode === "base" || mode === "remodel")) location.reload();
   if (e.code === "KeyE") {
     if (docOpen) { toggleDoc(false); }
-    else if (mode === "remodel") {
-      const nearDoc = Math.hypot(P.x - (RX + 20.2), P.z - 46) < 2.5;
-      const nearExitW = Math.hypot(P.x - (RX + 1.2), P.z - 55) < 2.0;
-      const nearExitE = Math.hypot(P.x - (RX + RW - 1.2), P.z - 67) < 2.0;
-      if (nearDoc) toggleDoc(true);
-      else if (nearExitW || nearExitE) leaveRemodel();
-    }
+    else if (mode === "remodel") remodelInteract.onKeyE();
   }
   if (e.code === "Escape" && docOpen) { toggleDoc(false); }
 });
@@ -88,6 +82,20 @@ function heartbeat() {                       // lub-dub, for the red room
   if (!actx) return;
   [0, .22].forEach((dt, n) => { const o = actx.createOscillator(), g = actx.createGain(), t0 = actx.currentTime + dt; o.frequency.value = 55 - n * 8; g.gain.setValueAtTime(0, t0); g.gain.linearRampToValueAtTime(.45 - n * .15, t0 + .02); g.gain.exponentialRampToValueAtTime(.001, t0 + .18); o.connect(g); g.connect(actx.destination); o.start(t0); o.stop(t0 + .2); });
 }
+function soundDrink() {
+  if (!actx) return;
+  const o = actx.createOscillator(), g = actx.createGain(), t0 = actx.currentTime;
+  o.type = "sine"; o.frequency.setValueAtTime(320, t0); o.frequency.exponentialRampToValueAtTime(160, t0 + .28);
+  g.gain.setValueAtTime(.25, t0); g.gain.linearRampToValueAtTime(0, t0 + .3);
+  o.connect(g); g.connect(actx.destination); o.start(t0); o.stop(t0 + .32);
+}
+function soundClick() {
+  if (!actx) return;
+  const o = actx.createOscillator(), g = actx.createGain(), t0 = actx.currentTime;
+  o.type = "square"; o.frequency.setValueAtTime(900, t0); o.frequency.exponentialRampToValueAtTime(80, t0 + .06);
+  g.gain.setValueAtTime(.3, t0); g.gain.linearRampToValueAtTime(0, t0 + .08);
+  o.connect(g); g.connect(actx.destination); o.start(t0); o.stop(t0 + .09);
+}
 
 // ---------- people-shaped sprites: the unconfirmed dark figure, and the wanderers in the Manila Room ----------
 function person(color, x, z) {
@@ -123,7 +131,7 @@ function ending() {
   fadeEl.innerHTML = ts
     ? "金屬滑門無聲地打開，你走了進去……<br><b>LEVEL 0.1 · 天頂站</b>"
     : r02
-    ? "推開裝修施工門，空氣中的腐臭味消失了……<br><b>LEVEL 0.2 · 重塑的世界</b>"
+    ? "燈管的嗡鳴忽然平息，腳下的地毯變得乾燥……你推開一扇嶄新的白色木門。<br><b>LEVEL 0.2 · 重塑的混亂</b>"
     : "你縱身躍入閃爍的牆壁……<br><b>LEVEL 1</b>";
   fadeEl.style.opacity = 1;
   setTimeout(ts ? enterStation : r02 ? enterRemodel : enterBase, 3200);
@@ -206,7 +214,7 @@ const MAP_VIEW = {                            // how each level's map is framed 
   map: { x: WS / 2, z: DS / 2, up: DS, back: DS * .9, max: 320, min: 10, mark: 1, tile: 1 },
   station: { x: CX, z: CZ, up: 380, back: 360, max: 800, min: 10, mark: 3, tile: .5 },
   base: { x: BX + BRW / 2, z: BZ + BRD / 2, up: 16, back: 14, max: 60, min: 5, mark: .4, tile: .3 },
-  remodel: { x: RX + RW / 2, z: RZ + RD / 2, up: 45, back: 35, max: 120, min: 6, mark: .6, tile: .5 },
+  remodel: { x: RX + RW / 2, z: RZ + RD / 2, up: 95, back: 80, max: 240, min: 10, mark: .8, tile: .6 },
 };
 const levelBtns = $("mapLevels");
 function setMapLevel(m) {
@@ -318,18 +326,7 @@ renderer.setAnimationLoop(() => {
     }
     if (fx || sx) { bob += dt * (run ? 12 : 8); if (Math.sin(bob) < -.95 && t - lastStep > .25) { footstep(mode === "map" && P.y < -.1); lastStep = t; } }
     if (mode === "remodel") {
-      const nearDoc = Math.hypot(P.x - (RX + 20.2), P.z - 46) < 2.5;
-      const nearExitW = Math.hypot(P.x - (RX + 1.2), P.z - 55) < 2.0;
-      const nearExitE = Math.hypot(P.x - (RX + RW - 1.2), P.z - 67) < 2.0;
-      if (nearDoc) {
-        if (!docOpen) say("【按 E】閱讀裝修公司夾板文檔", 1200);
-      } else if (nearExitW || nearExitE) {
-        say("【按 E 或 走進門】返回 Level 0", 1200);
-        if (nearExitW && P.x < RX + 1.0) leaveRemodel();
-        if (nearExitE && P.x > RX + RW - 1.0) leaveRemodel();
-      }
-      if (remodelDust) remodelDust.rotation.y += dt * .015;
-      if (clipLight) clipLight.intensity = 1.3 + .4 * Math.sin(t * 3);
+      remodelInteract.onTick(dt, t);
       if (actx && live) {
         remodelCreakT -= dt;
         if (remodelCreakT <= 0) {
@@ -388,7 +385,7 @@ renderer.setAnimationLoop(() => {
   const fl = .65 + .35 * Math.sin(t * 2.2) * Math.sin(t * 1.3 + 1);   // slow pulse, not a strobe
   exitKind === "ts" ? exitMat.color.setRGB(.42, .48, .54) : exitKind === "r02" ? exitMat.color.setRGB(.96, .92, .88) : exitMat.color.setScalar(fl * 2.2); exitLight.intensity = exitEdge && exitKind !== "ts" ? 9 * fl : 0;                     // the flickering wall
   updateAmbience(zt, dt, t);
-  hud.textContent = mode === "base" ? "LEVEL 1 · ALPHA 基地 · R 重新開始" : mode === "station" ? `LEVEL 0.1 · 天頂站 · ${tsLevel + 1}F · ${[21, -41, 63, 18][zt - 9]}°C` : mode === "remodel" ? "LEVEL 0.2 · 重塑的世界（後室裝修公司）· E 互動" : "LEVEL 0";
+  hud.textContent = mode === "base" ? "LEVEL 1 · ALPHA 基地 · R 重新開始" : mode === "station" ? `LEVEL 0.1 · 天頂站 · ${tsLevel + 1}F · ${[21, -41, 63, 18][zt - 9]}°C` : mode === "remodel" ? remodelHud() : "LEVEL 0";
   renderer.toneMapping = THREE.NeutralToneMapping;
   gtao.blendMaterial.uniforms.uFog.value = scene.fog.density;
   grade.uniforms.uTime.value = t; grade.uniforms.uGrain.value = .05 + .05 * anom + .04 * redK; grade.uniforms.uAberr.value = .0015 + .004 * redK;
