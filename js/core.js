@@ -209,66 +209,7 @@ addEventListener("resize", () => {
   renderer.setSize(innerWidth, innerHeight); composer.setSize(innerWidth, innerHeight);
 });
 
-// ---------- procedural textures ----------
-function tex(size, draw, repeat, hgt) {
-  const c = document.createElement("canvas"); c.width = size; c.height = hgt || size;
-  const g = c.getContext("2d"); draw(g, size);
-  const t = new THREE.CanvasTexture(c);
-  t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.SRGBColorSpace;
-  t.anisotropy = ANISO; if (repeat) t.repeat.set(repeat, repeat);
-  return t;
-}
-const noise = (g, s, n, a) => { const w = g.canvas.width, h = g.canvas.height; for (let i = 0; i < n; i++) { g.fillStyle = `rgba(${Math.random() < .5 ? "0,0,0" : "255,255,200"},${Math.random() * a})`; g.fillRect(Math.random() * w, Math.random() * h, 1 + Math.random() * 2, 1 + Math.random() * 2); } };
-// sickly yellow wallpaper, w x h px matching the wall's aspect so the motif isn't stretched;
-// each call gets its own random stains, drips and grime, so walls built from different calls don't look cloned.
-// peel: strips of paper curled away from the wall, showing blood-red underneath (the red room)
-const YEL = { base: "#c9b44a", dk: "rgba(150,125,30,.35)", lt: "rgba(235,215,110,.25)", dot: "rgba(140,115,25,.22)" };
-const PALE = { base: "#d9d29a", dk: "rgba(160,150,80,.28)", lt: "rgba(245,240,185,.3)", dot: "rgba(150,140,70,.16)" };                      // 台階長廊 and 中庭: pale cream
-const WAITP = { base: "#cdd392", dk: "rgba(110,135,60,.3)", lt: "rgba(240,244,190,.28)", dot: "rgba(110,140,60,.32)", arrow: true };      // 等候室: pale green, small arrows
-function paper(w, h, n, peel, pal = YEL) {
-  return tex(w, (g) => {
-    const p = w / n;                                   // stripe pitch in px
-    g.fillStyle = pal.base; g.fillRect(0, 0, w, h);
-    for (let x = 0; x < w; x += p) { g.fillStyle = pal.dk; g.fillRect(x, 0, p * .09, h); g.fillStyle = pal.lt; g.fillRect(x + p * .12, 0, p * .05, h); }
-    g.fillStyle = pal.dot;
-    for (let y = p * .25; y < h; y += p * .75) for (let x = p * .5; x < w; x += p) {
-      g.beginPath();
-      if (pal.arrow) { const s = p * .16; g.moveTo(x, y - s); g.lineTo(x + s * .6, y + s * .3); g.lineTo(x + s * .2, y + s * .3); g.lineTo(x + s * .2, y + s); g.lineTo(x - s * .2, y + s); g.lineTo(x - s * .2, y + s * .3); g.lineTo(x - s * .6, y + s * .3); g.closePath(); }
-      else g.arc(x, y, p * .09, 0, 7);
-      g.fill();
-    }
-    for (let i = 0, k = 3 + Math.random() * 4; i < k; i++) {        // damp stains (same centre for both circles)
-      const x = Math.random() * w, y = Math.random() * h, r = p * (.8 + Math.random() * 1.6), gr = g.createRadialGradient(x, y, 2, x, y, r);
-      gr.addColorStop(0, "rgba(90,70,10,.2)"); gr.addColorStop(1, "rgba(90,70,10,0)"); g.fillStyle = gr; g.fillRect(0, 0, w, h);
-    }
-    for (let i = 0, k = Math.random() * 5; i < k; i++) {            // water drips from the ceiling
-      const len = h * (.15 + Math.random() * .35), gr = g.createLinearGradient(0, 0, 0, len);
-      gr.addColorStop(0, "rgba(80,60,10,.25)"); gr.addColorStop(1, "rgba(80,60,10,0)");
-      g.save(); g.translate(Math.random() * w, 0); g.fillStyle = gr; g.fillRect(0, 0, p * .08, len); g.restore();
-    }
-    if (peel) for (let k = 0; k < 6; k++) {
-      const x = Math.random() * w * .9, sw = w * (.06 + Math.random() * .09), y0 = Math.random() * h * .3, len = h * (.3 + Math.random() * .55);
-      g.beginPath(); g.moveTo(x, y0);
-      for (let y = y0; y < y0 + len; y += 16) g.lineTo(x + sw + (Math.random() - .5) * 9, y);
-      for (let y = y0 + len; y > y0; y -= 16) g.lineTo(x + (Math.random() - .5) * 9, y);
-      const gr = g.createLinearGradient(0, y0, 0, y0 + len); gr.addColorStop(0, "#3d0404"); gr.addColorStop(1, "#8c1212");
-      g.fillStyle = gr; g.fill(); g.strokeStyle = "rgba(0,0,0,.5)"; g.lineWidth = 3; g.stroke();
-      g.fillStyle = pal.base; g.beginPath(); g.moveTo(x, y0 + len); g.lineTo(x + sw, y0 + len); g.lineTo(x + sw * .5, y0 + len - sw * 1.1); g.closePath(); g.fill(); g.stroke();   // the curled-off end
-    }
-    const b = g.createLinearGradient(0, h * .85, 0, h); b.addColorStop(0, "rgba(60,45,5,0)"); b.addColorStop(1, "rgba(60,45,5,.35)");
-    g.fillStyle = b; g.fillRect(0, h * .85, w, h * .15);              // grime near the floor
-    noise(g, w, 4000, .12);
-    contactShade(g, w, h);
-  }, 0, h);
-}
-// baked ambient occlusion: the texture spans the wall's full height, so its top and bottom edges are where it meets
-// the ceiling and the floor, the creases the ambient-only lighting would otherwise leave flat
-function contactShade(g, w, h) {
-  for (const [y0, y1, a] of [[0, h * .07, .32], [h, h * .9, .4]]) {
-    const gr = g.createLinearGradient(0, y0, 0, y1); gr.addColorStop(0, `rgba(30,22,0,${a})`); gr.addColorStop(1, "rgba(30,22,0,0)");
-    g.fillStyle = gr; g.fillRect(0, Math.min(y0, y1), w, Math.abs(y1 - y0));
-  }
-}
+// ---------- Level 0's own surfaces (texture helpers, prop materials and props: js/assets.js) ----------
 // tightly woven berber carpet; really beige-brown, the yellow comes from the lights
 const carpetTex = tex(256, (g, s) => {
   g.fillStyle = "#8b7b5a"; g.fillRect(0, 0, s, s); noise(g, s, 16000, .4);
@@ -299,7 +240,6 @@ const glowTex = tex(128, (g, s) => {
 });
 const glow = c => new THREE.MeshBasicMaterial({ map: glowTex, color: c, transparent: true, opacity: .55, blending: THREE.AdditiveBlending, depthWrite: false });
 const glowMat = glow(0xffe890), redGlowMat = glow(0xff3020);
-const flat = c => new THREE.MeshStandardMaterial({ color: c, roughness: 1 });
 const wallSet = (m, cap) => [m, m, cap, cap, cap, cap];
 const wallCap = flat(0xa8953a), redCap = flat(0x8a2a20), whiteCap = flat(0xdcd9cc), manilaCap = flat(0xc9a56a), darkCap = flat(0x1a1608);
 const wallMats = Array.from({ length: VAR }, () => wallSet(new THREE.MeshStandardMaterial({ map: paper(640, 448, 8), roughness: .95 }), wallCap));
@@ -312,9 +252,8 @@ const pillarMat = new THREE.MeshStandardMaterial({ map: paper(192, 576, 3), roug
 const whiteMat = new THREE.MeshStandardMaterial({ map: plasterTex, roughness: .95 });   // 拱門 walls are white
 const whiteSet = wallSet(whiteMat, whiteCap);
 const manilaSet = wallSet(new THREE.MeshStandardMaterial({ map: plasterTex, color: 0xd9b878, roughness: .95 }), manilaCap);
-const baseMat = flat(0x3d2f1a), frameMat = flat(0x6a4e2c), leafMat = flat(0x7d5c33), crateMat = flat(0xa8845a), railMat = flat(0x2a2a28);
-const chairMat = flat(0x6f7552), coolerMat = flat(0xe4e2d6), ventMat = flat(0x3a3a2c);   // waiting-room chairs and cooler, ceiling vents
-const chromeMat = new THREE.MeshStandardMaterial({ color: 0xa8a8a0, roughness: .35, metalness: .7 }), jugMat = new THREE.MeshStandardMaterial({ color: 0x5aa6e0, roughness: .2, transparent: true, opacity: .8 });
+const baseMat = getMat("baseboard"), frameMat = getMat("doorFrame"), leafMat = getMat("doorLeaf"), crateMat = getMat("crate"), railMat = getMat("railing");
+const coolerMat = getMat("coolerWhite"), ventMat = getMat("vent"), chromeMat = getMat("chrome"), jugMat = getMat("jugBlue");   // waiting-room cooler, ceiling vents
 const stairTex = carpetTex.clone(); stairTex.repeat.set(1.5, 1.5); stairTex.needsUpdate = true;
 const stairMat = new THREE.MeshStandardMaterial({ map: stairTex, roughness: 1 });
 const platSet = [whiteMat, whiteMat, stairMat, whiteMat, whiteMat, whiteMat];
@@ -352,11 +291,10 @@ const voidMat = new THREE.MeshBasicMaterial({
 });
 voidMat.map.wrapS = voidMat.map.wrapT = THREE.ClampToEdgeWrapping;
 // the atrium's cut-away floors: carpet on top, raw wood at the cut, a dark cavity of joists, insulation and ducts, then a dropped ceiling
-const cavityMat = flat(0x2a2214), insulMat = flat(0xbfa25a), rugMat = flat(0x8c4a2c), litterMat = flat(0xe6e1cf);
-const ductMat = new THREE.MeshStandardMaterial({ color: 0xa09e94, roughness: .45, metalness: .6, side: THREE.DoubleSide });
+const cavityMat = getMat("cavity"), insulMat = getMat("insulation"), rugMat = getMat("rug"), litterMat = getMat("paperLitter"), ductMat = getMat("duct");
 const slabSet = [frameMat, frameMat, stairMat, cavityMat, frameMat, frameMat], tileSet = [whiteCap, whiteCap, whiteCap, ceilClone(8, 8), whiteCap, whiteCap];
-const lampMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(0xffd890).multiplyScalar(2.4) }), lampGlowMat = glow(0xffb860);
-const liquidMat = new THREE.MeshStandardMaterial({ color: 0x1a1810, roughness: .15, metalness: .3, transparent: true, opacity: .85 });
+const lampMat = getMat("lampAmber"), lampGlowMat = glow(0xffb860);
+const liquidMat = getMat("darkWater");
 const basinMat = new THREE.MeshStandardMaterial({ map: carpetTex, color: 0x2e2c24, roughness: .8 });
 const basinSideMat = new THREE.MeshStandardMaterial({ map: carpetTex, color: 0x2e2c24, roughness: .8, side: THREE.DoubleSide });
 // the colour textures double as bump maps (as darkSet already does): embossed wallpaper stripes, carpet pile, tile grooves
@@ -442,7 +380,7 @@ function buildBlock(b) {
   const g = new THREE.Group(), mk = () => Array.from({ length: VAR }, () => []);
   const plain = mk(), reds = mk(), doorWalls = mk(), darks = [], whites = [], manilas = [], arches = [], frames = [], leaves = [], crates = [], boards = [];
   const glowF = [], glowC = [], redGlowF = [], redGlowC = [], panels = [], redPanels = [], pillars = [], pits = [], basinF = [], basinS = [], liquid = [];
-  const pales = [[], [], []], waits = [[], [], []], slabs = [], vents = [], L = { chSeat: [], chBack: [], chLeg: [], coolers: [], jugs: [] };
+  const pales = [[], [], []], waits = [[], [], []], slabs = [], vents = [], L = { coolers: [], jugs: [] };
   b.props = new Map(); b.mirrors = [];
   const x0 = b.bx * BW, y0 = b.by * BH;
   for (let i = x0; i < x0 + BW; i++) for (let j = y0; j < y0 + BH; j++) {
@@ -534,7 +472,8 @@ function buildBlock(b) {
   }
   for (let v = 0; v < 3; v++) { inst(g, boxGeo, paleMats[v], pales[v]); inst(g, boxGeo, waitMats[v], waits[v]); }
   inst(g, boxGeo, platSet, slabs); inst(g, flatDownGeo, ventMat, vents);
-  inst(g, boxGeo, chairMat, L.chSeat); inst(g, boxGeo, chairMat, L.chBack); inst(g, boxGeo, chromeMat, L.chLeg); inst(g, boxGeo, coolerMat, L.coolers); inst(g, jugGeo, jugMat, L.jugs);
+  for (const m of ["waitChair", "chrome"]) inst(g, boxGeo, getMat(m), L[m] || []);
+  inst(g, boxGeo, coolerMat, L.coolers); inst(g, jugGeo, jugMat, L.jugs);
   // the map wraps: districts on an edge are drawn once more a map-width over, so a doorway in the outer wall looks
   // onto exactly what you arrive in (the outer west and north walls come from these copies too)
   const xs = b.bx === 0 ? [0, WS] : b.bx === NBX - 1 ? [0, -WS] : [0], zs = b.by === 0 ? [0, DS] : b.by === NBY - 1 ? [0, -DS] : [0];
@@ -558,10 +497,8 @@ function addStairs(g) {
 }
 // a row of three chairs (or a water cooler) against a plain wall of a waiting room; the boxes go to b.props for collision
 function chair(L, px, y, pz, th) {          // th: the way the chair faces; its local x axis is (cos, -sin) in the world
-  const ax = Math.cos(th), az = -Math.sin(th), fx = Math.sin(th), fz = Math.cos(th);
-  const part = (lx, py, lz, sx, sy, sz, list) => list.push([px + ax * lx + fx * lz, y + py, pz + az * lx + fz * lz, th, sx, sy / H, sz]);
-  part(0, .46, 0, .46, .05, .46, L.chSeat); part(0, .74, -.21, .46, .42, .05, L.chBack);
-  part(-.2, .22, 0, .04, .44, .42, L.chLeg); part(.2, .22, 0, .04, .44, .42, L.chLeg);
+  const ax = Math.cos(th), az = -Math.sin(th), fx = Math.sin(th), fz = Math.cos(th);   // the library's waitChair, as instances per material
+  for (const [m, lx, py, lz, sx, sy, sz] of PROP_PARTS.waitChair) (L[m] ||= []).push([px + ax * lx + fx * lz, y + py, pz + az * lx + fz * lz, th, sx, sy / H, sz]);
 }
 function waitProps(b, i, j, L) {
   const r = hash(i, j, 41); if (r >= .22) return;

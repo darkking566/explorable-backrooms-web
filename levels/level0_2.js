@@ -95,54 +95,22 @@ const rmSet = (im, k, x, y, z, ry, sx = 1, sy = 1, sz = 1) => { _p4.set(x, y, z)
 
 function buildRemodel() {
   if (RMB) return;
-  // ---- textures (a 4 m wall face is 512 px wide; the maroon rail sits 0.5 m up, like the photos) ----
-  const wallDraw = outlet => (g, w, h) => {
-    g.fillStyle = "#ece8dc"; g.fillRect(0, 0, w, h); noise(g, w, 5000, .05);
-    const grd = g.createLinearGradient(0, 0, 0, h); grd.addColorStop(0, "rgba(255,255,250,.08)"); grd.addColorStop(1, "rgba(90,80,60,.12)"); g.fillStyle = grd; g.fillRect(0, 0, w, h);
-    const ry = h * (1 - .5 / RH); g.fillStyle = "#6c2622"; g.fillRect(0, ry - 5, w, 10); g.fillStyle = "rgba(255,255,255,.18)"; g.fillRect(0, ry - 5, w, 2);
-    if (outlet) {
-      const ox = w * .7, oy = h * (1 - .3 / RH);
-      g.fillStyle = "#e4e2d8"; g.fillRect(ox - 9, oy - 15, 18, 30); g.strokeStyle = "#8c8a80"; g.lineWidth = 1.5; g.strokeRect(ox - 9, oy - 15, 18, 30);
-      g.fillStyle = "#2a2a2a"; for (const dy of [-7, 7]) { g.fillRect(ox - 5, oy + dy - 3, 2, 5); g.fillRect(ox + 3, oy + dy - 3, 2, 5); }
-    }
-  };
-  const wallT = baseTex(512, 384, wallDraw(false)), outT = baseTex(512, 384, wallDraw(true));
-  const carpetT = baseTex(256, 256, (g, w, h) => {
-    g.fillStyle = "#5f2f2a"; g.fillRect(0, 0, w, h); noise(g, w, 9000, .16);
-    g.fillStyle = "rgba(40,10,8,.18)"; for (let y = 0; y < h; y += 3) g.fillRect(0, y, w, 1);
-  });
-  carpetT.wrapS = carpetT.wrapT = THREE.RepeatWrapping; carpetT.repeat.set(3, 3);
-  const ceilT = baseTex(256, 256, (g, w, h) => {      // 2 m of drop ceiling: 4 x 4 tiles of 50 cm
-    g.fillStyle = "#efede6"; g.fillRect(0, 0, w, h);
-    g.fillStyle = "rgba(120,115,100,.22)"; for (let n = 0; n < 2600; n++) g.fillRect(Math.random() * w, Math.random() * h, 1, 1);
-    g.fillStyle = "#c9c6bc"; for (let k = 0; k <= 4; k++) { g.fillRect(k * w / 4 - 2, 0, 4, h); g.fillRect(0, k * h / 4 - 2, w, 4); }
-  });
-  ceilT.wrapS = ceilT.wrapT = THREE.RepeatWrapping; ceilT.repeat.set(RW / 2, RD / 2);
-  const tileT = baseTex(128, 128, (g, w, h) => {
-    g.fillStyle = "#e6ebec"; g.fillRect(0, 0, w, h); g.fillStyle = "#a9b5b8";
-    for (let k = 0; k <= 8; k++) { g.fillRect(k * w / 8 - 1, 0, 2, h); g.fillRect(0, k * h / 8 - 1, w, 2); }
-  });
-  tileT.wrapS = tileT.wrapT = THREE.RepeatWrapping; tileT.repeat.set(3, 3);
-  const signT = baseTex(256, 80, (g, w, h) => {
+  const signT = canvasTex(256, 80, (g, w, h) => {
     g.fillStyle = "#24476b"; g.fillRect(0, 0, w, h); g.fillStyle = "#fff"; g.font = "bold 34px sans-serif"; g.textAlign = "center";
     g.fillText("洗手間 WC", w / 2, 52);
   });
-  const clipT = baseTex(128, 160, (g, w, h) => {
+  const clipT = canvasTex(128, 160, (g, w, h) => {
     g.fillStyle = "#f6f4ea"; g.fillRect(0, 0, w, h); g.fillStyle = "#3b3866"; g.fillRect(0, 0, w, 26);
     g.fillStyle = "#d3ae00"; g.font = "bold 12px sans-serif"; g.fillText("BACKROOMS REMODELING", 6, 17);
     g.fillStyle = "#555"; for (let y = 40; y < h - 8; y += 11) g.fillRect(8, y, 40 + Math.random() * 70, 3);
   });
   // ---- materials ----
-  const wallM = new THREE.MeshStandardMaterial({ map: wallT, roughness: .9 }), outM = new THREE.MeshStandardMaterial({ map: outT, roughness: .9 });
-  const carpetM = new THREE.MeshStandardMaterial({ map: carpetT, roughness: 1 });
-  const ceilM = new THREE.MeshStandardMaterial({ map: ceilT, roughness: .9 }), ceilTileM = flat(0xeceae2);
-  const lightM = new THREE.MeshBasicMaterial({ color: new THREE.Color(0xfffcf2).multiplyScalar(2.6) });
+  const wallM = getMat("remodelWall"), outM = getMat("remodelWallOutlet"), carpetM = getMat("redCarpet", 3);   // 3 x 3 per 4 m cell
+  const ceilM = getMat("dropCeiling", RW / 2, RD / 2), ceilTileM = getMat("ceilingTile"), lightM = getMat("lampPanel");
   const decalM = glow(0xfff4e0); decalM.opacity = .28;
-  const studM = flat(0xc8a06a), plyM = flat(0x9c7c52), joistM = flat(0x6e5232), pitM = new THREE.MeshStandardMaterial({ color: 0x3a2c1c, roughness: 1, side: THREE.DoubleSide });
-  const holeM = flat(0x1a1712), porcelainM = new THREE.MeshStandardMaterial({ color: 0xf4f4f0, roughness: .25 }), chromeM = new THREE.MeshStandardMaterial({ color: 0xb0b0aa, roughness: .3, metalness: .8 });
-  const doorM = flat(0xe6e1d4), brassM = new THREE.MeshStandardMaterial({ color: 0xc9a040, roughness: .35, metalness: .8 });
+  const studM = getMat("stud"), plyM = getMat("plywood"), joistM = getMat("joist"), pitM = getMat("subfloorPit"), holeM = getMat("holeDark");
+  const doorM = getMat("doorWhite"), brassM = getMat("brass");
   const vestM = wallMats[0].map(m => { const c = m.clone(); c.side = THREE.BackSide; return c; });   // beyond each door: the yellow of Level 0
-  const ledM = new THREE.MeshBasicMaterial({ color: 0x40ff70 });
   const G = {
     wall: new THREE.BoxGeometry(RC + .2, RH, .2), panel: new THREE.BoxGeometry(RC, RH, .1), stud: new THREE.BoxGeometry(.05, RH - .1, .1), plate: new THREE.BoxGeometry(RC, .05, .1),
     tile: new THREE.BoxGeometry(.5, .02, .5), hole: new THREE.PlaneGeometry(.5, .5).rotateX(Math.PI / 2), sub: new THREE.PlaneGeometry(RC, RC).rotateX(-Math.PI / 2),
@@ -150,6 +118,7 @@ function buildRemodel() {
   };
   const add = (geo, mat, x, y, z, ry = 0, parent = remodelGroup) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.rotation.y = ry; parent.add(m); return m; };
   const box = (w, h, d, mat, x, y, z, ry = 0, parent) => add(new THREE.BoxGeometry(w, h, d), mat, x, y, z, ry, parent);
+  const put = (name, x, y, z, ry, parent = remodelGroup) => placeAt(makeProp(name), parent, x, y, z, ry);
 
   // ---- walls: instanced; a fallen one is hidden and replaced by what was behind it ----
   const nOut = RM_WALLS.filter(w => w.outlet).length;
@@ -183,30 +152,27 @@ function buildRemodel() {
   // ---- restrooms: tiled floor, toilet, sink, mirror, a sign over the doorway ----
   for (const [i, j] of RM_REST) {
     const [cx, cz] = rmCell(i, j);
-    add(new THREE.PlaneGeometry(RC - .2, RC - .2).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ map: tileT, roughness: .35 }), cx, .008, cz);
-    box(.42, .42, .62, porcelainM, cx - .9, .21, cz - 1.55); box(.46, .5, .2, porcelainM, cx - .9, .62, cz - 1.82); box(.44, .04, .5, porcelainM, cx - .9, .44, cz - 1.5);
-    box(.15, .78, .15, porcelainM, cx + 1.8, .39, cz - .6); box(.42, .14, .55, porcelainM, cx + 1.75, .84, cz - .6); add(new THREE.CylinderGeometry(.015, .015, .2, 6), chromeM, cx + 1.9, .98, cz - .6);
-    add(new THREE.PlaneGeometry(.7, .9), new THREE.MeshStandardMaterial({ color: 0x9fb8c2, roughness: .05, metalness: .9 }), cx + RC / 2 - .11, 1.55, cz - .6, -Math.PI / 2);
+    add(new THREE.PlaneGeometry(RC - .2, RC - .2).rotateX(-Math.PI / 2), getMat("bathTile", 3), cx, .008, cz);
+    put("toilet", cx - .9, 0, cz - 1.55); put("pedestalSink", cx + 1.8, 0, cz - .6, -Math.PI / 2);   // the sink's back to the east wall
+    add(new THREE.PlaneGeometry(.7, .9), getMat("mirror"), cx + RC / 2 - .11, 1.55, cz - .6, -Math.PI / 2);
     add(new THREE.PlaneGeometry(1, .31), new THREE.MeshBasicMaterial({ map: signT }), cx, 2.7, cz + RC / 2 + .02);
   }
 
   // ---- the site desk: a folding table with the work crew's clipboard, paint, a stepladder ----
   {
     const [cx, cz] = rmCell(...RM_DESK);
-    box(1.8, .04, .8, flat(0xd8d4c8), cx, .74, cz); for (const a of [-.8, .8]) for (const b of [-.32, .32]) box(.04, .72, .04, chromeM, cx + a, .36, cz + b);
-    box(.24, .015, .32, flat(0x8a6238), cx - .2, .77, cz); add(new THREE.PlaneGeometry(.22, .28).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ map: clipT }), cx - .2, .779, cz + .01);
-    box(.1, .025, .04, chromeM, cx - .2, .785, cz - .14);
+    put("foldingTable", cx, 0, cz);
+    box(.24, .015, .32, getMat("clipboard"), cx - .2, .77, cz); add(new THREE.PlaneGeometry(.22, .28).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ map: clipT }), cx - .2, .779, cz + .01);
+    box(.1, .025, .04, getMat("chrome"), cx - .2, .785, cz - .14);
     RMB_hint = add(new THREE.PlaneGeometry(1.4, 1.4).rotateX(-Math.PI / 2), glow(0xffe08a), cx - .2, .785, cz);
-    for (let k = 0; k < 3; k++) { add(new THREE.CylinderGeometry(.15, .15, .36, 14), flat(0xdedcd4), cx + .5 + k * .34, .18, cz + .75); add(new THREE.CylinderGeometry(.152, .152, .02, 14), flat(k ? 0xece8dc : 0x6c2622), cx + .5 + k * .34, .37, cz + .75); }
-    for (const s of [-1, 1]) { const l = box(.5, 2.1, .05, flat(0xb8b8b0), cx - 1.6, 1.0, cz + s * .3); l.rotation.x = s * .17; }
+    for (let k = 0; k < 3; k++) put(k ? "paintCan" : "paintCanMaroon", cx + .5 + k * .34, 0, cz + .75);
+    put("stepladder", cx - 1.6, 0, cz);
   }
 
   // ---- WiFi routers ----
   const leds = [];
   for (const [x, z, ry] of RM_ROUTERS) {
-    const g = new THREE.Group(); g.position.set(x, 2.1, z); g.rotation.y = ry; remodelGroup.add(g);
-    box(.26, .18, .04, flat(0x1d1d1f), 0, 0, 0, 0, g); for (const s of [-1, 1]) box(.015, .2, .015, flat(0x1d1d1f), s * .1, .18, 0, 0, g);
-    leds.push(box(.02, .02, .01, ledM, -.06, -.04, .025, 0, g), box(.02, .02, .01, ledM, 0, -.04, .025, 0, g));
+    leds.push(...put("wifiRouter", x, 2.1, z, ry).children.filter(c => c.material === getMat("ledGreen")));
   }
 
   const dyn = new THREE.Group(); remodelGroup.add(dyn);

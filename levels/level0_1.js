@@ -61,7 +61,7 @@ const tsCands = (s, f) => { const a = Math.floor(s / 10); for (let i = a - 1; i 
   }
 })();
 function tsBuildAll() {
-  const tile = (base, n, line, lw) => baseTex(256, 256, (g, w, h) => {
+  const tile = (base, n, line, lw) => canvasTex(256, 256, (g, w, h) => {
     g.fillStyle = base; g.fillRect(0, 0, w, h); noise(g, w, 6000, .1); g.strokeStyle = line; g.lineWidth = lw;
     for (let k = 0; k <= n; k++) { g.beginPath(); g.moveTo(k * w / n, 0); g.lineTo(k * w / n, h); g.moveTo(0, k * h / n); g.lineTo(w, k * h / n); g.stroke(); }
   });
@@ -69,7 +69,7 @@ function tsBuildAll() {
   const floorT = tile("#b9bcb8", 2, "rgba(70,75,80,.55)", 3), ceilT = tile("#eeeee8", 4, "rgba(150,150,140,.6)", 2);
   // three wall variants so the panels stop repeating: plain, with a vent and a label plate, and water-stained
   // 3 and 4 are the hazard zones: frost creeping in from skirting and ceiling, soot plumes rising off the floor
-  const wallTs = [0, 1, 2, 3, 4].map(v => baseTex(256, 256, (g, w, h) => {
+  const wallTs = [0, 1, 2, 3, 4].map(v => canvasTex(256, 256, (g, w, h) => {
     g.fillStyle = "#dcddd6"; g.fillRect(0, 0, w, h); noise(g, w, 5000, .1); g.fillStyle = "#9da3a7"; g.fillRect(0, h * .9, w, h * .1);
     g.strokeStyle = "rgba(105,110,115,.55)"; g.lineWidth = 3; g.beginPath();
     for (let k = 0; k <= 4; k++) { g.moveTo(k * w / 4, 0); g.lineTo(k * w / 4, h * .9); }
@@ -94,13 +94,13 @@ function tsBuildAll() {
     }
   }));
   // finger smudges and edge grime on the glass; its alpha also carries the reflection, so it never goes fully clear
-  const glassT = baseTex(256, 256, (g, w, h) => {
+  const glassT = canvasTex(256, 256, (g, w, h) => {
     g.fillStyle = "rgba(255,255,255,.22)"; g.fillRect(0, 0, w, h);
     for (let k = 0; k < 14; k++) { const x = Math.random() * w, y = h * (.3 + Math.random() * .6), r = 8 + Math.random() * 30, gr = g.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, "rgba(255,255,255,.35)"); gr.addColorStop(1, "rgba(255,255,255,0)"); g.fillStyle = gr; g.fillRect(x - r, y - r, 2 * r, 2 * r); }
     const e = g.createLinearGradient(0, 0, 0, h); e.addColorStop(0, "rgba(90,95,90,.5)"); e.addColorStop(.08, "rgba(90,95,90,0)"); e.addColorStop(.9, "rgba(90,95,90,0)"); e.addColorStop(1, "rgba(90,95,90,.6)"); g.fillStyle = e; g.fillRect(0, 0, w, h);
   });
   const env = new THREE.PMREMGenerator(renderer).fromScene(new RoomEnvironment(), .04).texture;   // something for steel, tiles and glass to reflect
-  const hexT = baseTex(128, 128, g => {      // hexagonal grating standing in for a missing pane (alpha test: see-through)
+  const hexT = canvasTex(128, 128, g => {      // hexagonal grating standing in for a missing pane (alpha test: see-through)
     g.strokeStyle = "#0a0806"; g.lineWidth = 5; const r = 12, dx = r * 1.732;
     for (let row = 0; row < 12; row++) for (let col = 0; col < 8; col++) { const cx = col * dx + (row % 2) * dx / 2, cy = row * r * 1.5; g.beginPath(); for (let s = 0; s < 6; s++) { const a = Math.PI / 6 + s * Math.PI / 3; g.lineTo(cx + Math.cos(a) * r, cy + Math.sin(a) * r); } g.closePath(); g.stroke(); }
   });
@@ -123,7 +123,7 @@ function tsBuildAll() {
   const props = { frame: steelM, mattress: flat(0xd6d4ca), pillow: flat(0xf0efe8), blanket: flat(0x5f7d8f), wood: flat(0x8a7a62), top: std({ color: 0xe6e6e0, roughness: .35, envMapIntensity: .4 }), cab: flat(0xa9b0b5),
     tub: flat(0x8d928b), soil: flat(0x3b2f24), dead: flat(0x8c7c4c), leaf: flat(0x56622e), iron: flat(0x30353b), pad: flat(0x6e2a24), plate: flat(0x1c1f22), crate: flat(0xa8845a), band: flat(0x5d4a30), kbd: flat(0x2a2e33) };
   const TYPES = ["臥室", "廚房", "溫室", "健身房", "倉儲", "實驗室"];   // tsPlan picks a room's type with hash(i, 0, 55)
-  const sign = (a, b) => new THREE.MeshBasicMaterial({ map: baseTex(256, 256, (g, w, h) => {
+  const sign = (a, b) => new THREE.MeshBasicMaterial({ map: canvasTex(256, 256, (g, w, h) => {
     g.fillStyle = "#d8efe0"; g.fillRect(0, 0, w, h); g.fillStyle = "#1a3a2a"; g.textAlign = "center"; g.font = "bold 40px sans-serif"; g.fillText(a, w / 2, h * .45); g.font = "28px sans-serif"; g.fillText(b, w / 2, h * .62);
   }) });
   const doorM = sign("LEVEL 0", "出口 · 自動門"), liftM = sign("電梯", "E ▲ 上樓 · Q ▼ 下樓");
@@ -137,7 +137,7 @@ function tsBuildAll() {
     b.userData.legs = legs; return b;
   };
   // sliding door leaves: brushed panel with a narrow wired-glass slot
-  const leafT = baseTex(128, 256, (c, w, h) => {
+  const leafT = canvasTex(128, 256, (c, w, h) => {
     c.fillStyle = "#c6cac7"; c.fillRect(0, 0, w, h); noise(c, w, 1500, .08); c.strokeStyle = "#8a9094"; c.lineWidth = 6; c.strokeRect(0, 0, w, h);
     c.fillStyle = "#3a4650"; c.fillRect(w * .55, h * .18, w * .22, h * .32); c.fillStyle = "#d4a830"; c.fillRect(0, h * .9, w, h * .03);
   });
@@ -206,7 +206,7 @@ function tsBuildAll() {
     g.add(place(new THREE.Mesh(new THREE.PlaneGeometry(2.2, 2.4), doorM), 2.5, 1.2, .45));   // the way back to Level 0, in lobby 0
     for (const i of TS_LOBBY) g.add(place(new THREE.Mesh(new THREE.PlaneGeometry(2.2, 2.4), liftM), i * 10 + 7.5, 1.2, .45));
     // room plates beside each door, hall side: deck + room number and the room's type, all from one atlas per deck
-    const plateT = baseTex(1024, 512, (c, w, h) => {
+    const plateT = canvasTex(1024, 512, (c, w, h) => {
       c.textAlign = "center";
       for (let i = 0; i < 100; i++) {
         const x = (i % 10) * w / 10, y = Math.floor(i / 10) * h / 10;
@@ -240,7 +240,7 @@ function tsBuildAll() {
 // windows, Level 0 itself: identical storeys stacked without end, two cylinders so the near pillars slide over the far rooms.
 function buildVoid() {
   const RV = Math.hypot(TS_RO - 20, TS_MID), cap = Math.acos(TS_MID / RV);   // the caps meet the inner glass exactly at the top and bottom decks
-  const shellT = baseTex(512, 512, (g, w, h) => {
+  const shellT = canvasTex(512, 512, (g, w, h) => {
     g.fillStyle = "#cfcabd"; g.fillRect(0, 0, w, h); noise(g, w, 9000, .12);
     for (let r = 0; r < 16; r++) {
       const y = r * 32; g.fillStyle = "#8d8a80"; g.fillRect(0, y, w, 4);
@@ -258,7 +258,7 @@ function buildVoid() {
     const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: 0x8a7356, transparent: true, opacity: .45, depthWrite: false, fog: false }));
     const a = hash(k, 1, 96) * 6.2832, r = hash(k, 2, 96) * 110; s.position.set(Math.cos(a) * r, (hash(k, 3, 96) - .5) * 170, Math.sin(a) * r); s.scale.setScalar(90 + hash(k, 4, 96) * 120); dust.add(s);
   }
-  const burst = baseTex(256, 256, g => {
+  const burst = canvasTex(256, 256, g => {
     const r = g.createRadialGradient(128, 128, 0, 128, 128, 128); r.addColorStop(0, "rgba(255,235,190,1)"); r.addColorStop(.12, "rgba(255,190,100,.8)"); r.addColorStop(.5, "rgba(255,140,50,.18)"); r.addColorStop(1, "rgba(255,120,40,0)");
     g.fillStyle = r; g.fillRect(0, 0, 256, 256); g.lineCap = "round";
     for (let k = 0; k < 14; k++) { const a = k / 14 * Math.PI * 2 + hash(k, 1, 95) * .3, len = 70 + hash(k, 2, 95) * 56; g.strokeStyle = "rgba(255,190,110,.65)"; g.lineWidth = 1 + hash(k, 3, 95) * 2; g.beginPath(); g.moveTo(128, 128); g.lineTo(128 + Math.cos(a) * len, 128 + Math.sin(a) * len); g.stroke(); }
@@ -267,7 +267,7 @@ function buildVoid() {
   const lamp = new THREE.Group(); lamp.position.y = RV - 8; fx.add(lamp);
   const spr = (map, color, sx, sy, add) => { const s = new THREE.Sprite(new THREE.SpriteMaterial({ map, color, transparent: true, depthWrite: false, fog: false, blending: add ? THREE.AdditiveBlending : THREE.NormalBlending })); s.scale.set(sx, sy, 1); lamp.add(s); return s; };
   spr(burst, 0xffffff, 70, 70, false); spr(glowTex, 0xffc070, 260, 2.5, true); spr(glowTex, 0x9a6a30, 160, 160, true);
-  const l0 = (cut) => baseTex(512, 256, (g, w, h) => {   // two storeys of Level 0, 16 m wide; cut: leave the rooms between the pillars see-through
+  const l0 = (cut) => canvasTex(512, 256, (g, w, h) => {   // two storeys of Level 0, 16 m wide; cut: leave the rooms between the pillars see-through
     for (let f = 0; f < 2; f++) {
       const y = f * 128;
       if (!cut) {

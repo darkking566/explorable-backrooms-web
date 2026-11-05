@@ -97,14 +97,7 @@ function soundClick() {
   o.connect(g); g.connect(actx.destination); o.start(t0); o.stop(t0 + .09);
 }
 
-// ---------- people-shaped sprites: the unconfirmed dark figure, and the wanderers in the Manila Room ----------
-function person(color, x, z) {
-  const c = document.createElement("canvas"); c.width = 64; c.height = 128; const g = c.getContext("2d"); g.fillStyle = color;
-  g.beginPath(); g.arc(32, 14, 11, 0, 7); g.fill(); g.fillRect(22, 26, 20, 50); g.fillRect(12, 28, 8, 48); g.fillRect(44, 28, 8, 48);
-  g.fillRect(23, 76, 8, 50); g.fillRect(33, 76, 8, 50);
-  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), transparent: true }));
-  s.scale.set(.95, 1.9, 1); s.position.set(x, .95, z); scene.add(s); return s;
-}
+// ---------- the unconfirmed dark figure (person() is in js/assets.js) ----------
 const fig = person("#000", 0, 0); fig.visible = false;
 let figT = 35 + Math.random() * 40, figSeen = 0;
 // other wanderers, standing still: the only place where people can see each other
