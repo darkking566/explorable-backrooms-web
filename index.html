@@ -75,7 +75,7 @@
     <div class="mp-card mp-zoom"><button id="mapIn" aria-label="放大">＋</button><button id="mapOut" aria-label="縮小">－</button></div>
   </div>
   <div class="mp-card mp-hint">左鍵拖曳：平移 · 右鍵拖曳：旋轉 / 傾斜 · 滾輪：縮放<br>把右下角的<b>小人</b>拖到地圖上（綠色可降落）· 左上切換關卡，天頂站可再切換甲板 · M / Esc 返回</div>
-  <div class="mp-card mp-levels" id="mapLevels" aria-label="關卡"><button data-m="map" title="後室 Level 0">Level 0</button><button data-m="station" title="天頂站">Level 0.1</button><button data-m="remodel" title="重塑的混亂">Level 0.2</button><button data-m="base" title="Alpha 基地">Level 1</button></div>
+  <div class="mp-card mp-levels" id="mapLevels" aria-label="關卡"><button data-m="map" title="後室 Level 0">Level 0</button><button data-m="station" title="天頂站">Level 0.1</button><button data-m="remodel" title="重塑的混亂">Level 0.2</button><button data-m="ice" title="冰室">Level 0.3</button><button data-m="base" title="Alpha 基地">Level 1</button></div>
   <div class="mp-card mp-decks" id="mapDecks" aria-label="甲板"></div>
   <div id="pegGhost"></div>
 </div>
@@ -86,7 +86,7 @@
       <div style="background:#3b3866;color:#d3ae00;padding:6px 12px;border-radius:6px;font-weight:bold;font-size:14px;letter-spacing:1px;">REMODELING CO.</div>
       <div style="font-size:18px;font-weight:bold;color:#1c1a30;">後室裝修公司 · 現場調查夾板</div>
     </div>
-    <div style="line-height:1.7;font-size:14.5px;color:#333;">
+    <div id="docBody" style="line-height:1.7;font-size:14.5px;color:#333;">
       <div style="background:#fff;border-left:4px solid #3b3866;padding:12px 16px;margin-bottom:14px;box-shadow:0 1px 4px rgba(0,0,0,.08);">
         <b style="color:#3b3866;font-size:15px;">【文檔一 · 企業標語】</b><br>
         「真正的整潔來自於裝潢。真正的秩序由家具傳達。」
@@ -143,6 +143,7 @@ Object.assign(window, { THREE, OrbitControls, Reflector, EffectComposer, RenderP
 <script defer src="js/core.js"></script>
 <script defer src="levels/level1.js"></script>
 <script defer src="levels/level0_2.js"></script>
+<script defer src="levels/level0_3.js"></script>
 <script defer src="levels/level0_1.js"></script>
 <script defer src="js/game.js"></script>
 </body>

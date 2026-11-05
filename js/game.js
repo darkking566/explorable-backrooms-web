@@ -1,10 +1,11 @@
 "use strict";
 // ---------- input ----------
 const keys = {}, ov = document.getElementById("ov"), fadeEl = document.getElementById("fade"), msgEl = document.getElementById("msg"), redv = document.getElementById("redv");
-const docViewerEl = document.getElementById("docViewer");
+const docViewerEl = document.getElementById("docViewer"), docBody = document.getElementById("docBody");
 let docOpen = false;
 function toggleDoc(on = !docOpen) {
   docOpen = on;
+  if (!on && docBody.dataset.o) { docBody.innerHTML = docBody.dataset.o; delete docBody.dataset.o; }   // Level 0.3 swaps in its own papers
   docViewerEl.style.display = on ? "flex" : "none";
   if (on) { document.exitPointerLock(); }
   else if (!mapOpen && state === "play") { renderer.domElement.requestPointerLock()?.catch?.(() => {}); }
@@ -12,10 +13,11 @@ function toggleDoc(on = !docOpen) {
 document.getElementById("docClose").onclick = () => toggleDoc(false);
 addEventListener("keydown", e => {
   keys[e.code] = true;
-  if (e.code === "KeyR" && (mode === "base" || mode === "remodel")) location.reload();
+  if (e.code === "KeyR" && (mode === "base" || mode === "remodel" || mode === "ice")) location.reload();
   if (e.code === "KeyE") {
     if (docOpen) { toggleDoc(false); }
     else if (mode === "remodel") remodelInteract.onKeyE();
+    else if (mode === "ice") iceInteract.onKeyE();
   }
   if (e.code === "Escape" && docOpen) { toggleDoc(false); }
 });
@@ -124,17 +126,19 @@ function respawn(text, wait) {
   setTimeout(() => { if (mode === "station") tsLevel = TS_START; const home = mode === "station" ? TS_HOME : pickSpawn(); P.x = home[0]; P.z = home[1]; if (mode !== "station") P.yaw = Math.random() * Math.PI * 2; P.y = mode === "station" ? tsLevel * TS_FH : 0; dropY = 0; fallV = 0; fadeEl.style.opacity = 0; state = "play"; }, wait);
 }
 function ending() {
-  const ts = exitKind === "ts", r02 = exitKind === "r02";
+  const ts = exitKind === "ts", r02 = exitKind === "r02", ice = exitKind === "ice";
   state = "wait";
   fadeEl.innerHTML = ts
     ? "金屬滑門無聲地打開，你走了進去……<br><b>LEVEL 0.1 · 天頂站</b>"
     : r02
     ? "燈管的嗡鳴忽然平息，腳下的地毯變得乾燥……你推開一扇嶄新的白色木門。<br><b>LEVEL 0.2 · 重塑的混亂</b>"
+    : ice
+    ? "牆上的光變得蒼白，空氣刺骨……你呼出的氣息結成白霧。<br><b>LEVEL 0.3 · 冰室</b>"
     : "你縱身躍入閃爍的牆壁……<br><b>LEVEL 1</b>";
   fadeEl.style.opacity = 1;
-  setTimeout(ts ? enterStation : r02 ? enterRemodel : enterBase, 3200);
+  setTimeout(ts ? enterStation : r02 ? enterRemodel : ice ? enterIce : enterBase, 3200);
 }
-window.bk = { P, PITS, cellType, BLOCKS, carve, rebuild, wallE, wallS, edgeKind, floorH, pickSpawn, scene, camera, enterBase, enterStation, enterRemodel, leaveRemodel, setLevel: l => { tsLevel = l; }, tsS, tsP, tsCollide, tsStand, tsTick, TS_DOOR, spawnExit, spawnPit, get exitEdge() { return exitEdge; } };    // handle for debugging in the console
+window.bk = { P, PITS, cellType, BLOCKS, carve, rebuild, wallE, wallS, edgeKind, floorH, pickSpawn, scene, camera, enterBase, enterStation, enterRemodel, leaveRemodel, enterIce, leaveIce, setLevel: l => { tsLevel = l; }, tsS, tsP, tsCollide, tsStand, tsTick, TS_DOOR, spawnExit, spawnPit, get exitEdge() { return exitEdge; } };    // handle for debugging in the console
 
 // ---------- 地圖: a Google-Maps-style 3D overview; drag the pegman onto a cell to drop in there ----------
 const MAP_COL = { [N]: 0xf1e7a8, [ARCH]: 0xead3b0, [PIL]: 0xd3e2bd, [PIT]: 0xc9c9c9, [DARK]: 0x9aa3b5, [RED]: 0xe9a3a0, [MAN]: 0xdcc6ec, [STAIR]: 0xb4d3ea, [WAIT]: 0xf0e08a, [LEDGE]: 0xd7e0c3, [ATRIUM]: 0xf4c98f };
@@ -169,8 +173,8 @@ function mkLabels(list, w) {                  // place names, white-haloed like 
   }
   return grp;
 }
-const l0Labels = mkLabels(PLACES, 16), tsLabels = mkLabels(TS_PLACES, 30), baseLabels = mkLabels(BASE_PLACES, 5), remodelLabels = mkLabels(REMODEL_PLACES, 8);
-const MAP_LISTS = { map: PLACES, station: TS_PLACES, base: BASE_PLACES, remodel: REMODEL_PLACES };
+const l0Labels = mkLabels(PLACES, 16), tsLabels = mkLabels(TS_PLACES, 30), baseLabels = mkLabels(BASE_PLACES, 5), remodelLabels = mkLabels(REMODEL_PLACES, 8), iceLabels = mkLabels(ICE_PLACES, 8);
+const MAP_LISTS = { map: PLACES, station: TS_PLACES, base: BASE_PLACES, remodel: REMODEL_PLACES, ice: ICE_PLACES };
 $("mapPl").innerHTML = [...new Set(PLACES.map(p => p[0]))].map(n => `<option value="${n}">`).join("");
 $("peg").innerHTML = PEG_SVG; $("pegGhost").innerHTML = PEG_SVG;
 
@@ -178,10 +182,11 @@ $("peg").innerHTML = PEG_SVG; $("pegGhost").innerHTML = PEG_SVG;
 function buildMap() {
   mapWorld.traverse(o => o.isInstancedMesh && o.dispose());
   mapWorld.clear();
-  l0Labels.visible = mapMode === "map"; tsLabels.visible = mapMode === "station"; baseLabels.visible = mapMode === "base"; remodelLabels.visible = mapMode === "remodel"; decks.style.display = mapMode === "station" ? "flex" : "none";
+  l0Labels.visible = mapMode === "map"; tsLabels.visible = mapMode === "station"; baseLabels.visible = mapMode === "base"; remodelLabels.visible = mapMode === "remodel"; iceLabels.visible = mapMode === "ice"; decks.style.display = mapMode === "station" ? "flex" : "none";
   if (mapMode === "station") return buildStationMap();
   if (mapMode === "base") return buildBaseMap();
   if (mapMode === "remodel") return buildRemodelMap();
+  if (mapMode === "ice") return buildIceMap();
   const col = new THREE.Color(), floors = new THREE.InstancedMesh(flatGeo, new THREE.MeshLambertMaterial(), W * D), walls = [], pillars = [];
   for (let i = 0; i < W; i++) for (let j = 0; j < D; j++) {
     const k = j * W + i;
@@ -213,6 +218,7 @@ const MAP_VIEW = {                            // how each level's map is framed 
   station: { x: CX, z: CZ, up: 380, back: 360, max: 800, min: 10, mark: 3, tile: .5 },
   base: { x: BX + BRW / 2, z: BZ + BRD / 2, up: 16, back: 14, max: 60, min: 5, mark: .4, tile: .3 },
   remodel: { x: RX + RW / 2, z: RZ + RD / 2, up: 110, back: 95, max: 280, min: 10, mark: .8, tile: .6 },
+  ice: { x: IX + IW / 2, z: IZ + ID / 2, up: 105, back: 90, max: 280, min: 10, mark: .8, tile: .6 },
 };
 const levelBtns = $("mapLevels");
 function setMapLevel(m) {
@@ -262,7 +268,7 @@ function tsStand(x, z) {                      // on a deck's floor, between the 
   if (ok) tsCands(s, (r, w) => { const p = s - w; if (p > r[0] - P.r && p < r[2] + P.r && u > r[1] - P.r && u < r[3] + P.r) ok = false; });
   return ok;
 }
-const canStand = c => mapMode === "station" ? tsStand(c.x, c.z) : mapMode === "base" ? baseStand(c.x, c.z) : mapMode === "remodel" ? remodelStand(c.x, c.z) : cellType(c.i, c.j) !== STAIR && !pitHit(c.x, c.z);   // Level 0 skips the stairwell: its landing is solid, not ground
+const canStand = c => mapMode === "station" ? tsStand(c.x, c.z) : mapMode === "base" ? baseStand(c.x, c.z) : mapMode === "remodel" ? remodelStand(c.x, c.z) : mapMode === "ice" ? iceStand(c.x, c.z) : cellType(c.i, c.j) !== STAIR && !pitHit(c.x, c.z);   // Level 0 skips the stairwell: its landing is solid, not ground
 const peg = $("peg"), ghost = $("pegGhost");
 let pegDrag = false;
 function pegMove(e) {
@@ -280,7 +286,7 @@ peg.addEventListener("pointerup", e => {
   if (!pegDrag) return;
   const c = cellAt(e.clientX, e.clientY); pegEnd();
   if (!c || !canStand(c)) return;
-  if (mapMode !== mode) (mapMode === "station" ? enterStation : mapMode === "base" ? enterBase : mapMode === "remodel" ? enterRemodel : enterMap)();   // dropping onto another level's map moves you there
+  if (mapMode !== mode) (mapMode === "station" ? enterStation : mapMode === "base" ? enterBase : mapMode === "remodel" ? enterRemodel : mapMode === "ice" ? enterIce : enterMap)();   // dropping onto another level's map moves you there
   if (mapMode === "station") tsLevel = mapDeck;
   P.x = c.x; P.z = c.z; P.yaw = mapCtl.getAzimuthalAngle(); P.pitch = 0; P.y = floorH(P.x, P.z); dropY = fallV = 0; redEntry = [P.x, P.z]; fig.visible = false;
   toggleMap(false); startAudio(); renderer.domElement.requestPointerLock()?.catch?.(() => {});
@@ -300,7 +306,7 @@ let bob = 0, lastStep = 0;
 renderer.setAnimationLoop(() => {
   if (mapOpen) return mapFrame();
   const dt = Math.min(clock.getDelta(), .05), t = clock.elapsedTime;
-  const zt = mode === "base" ? 8 : mode === "station" ? 9 + tsZoneNow() : mode === "remodel" ? REMODEL_ZT : cellType(Math.floor(P.x / S), Math.floor(P.z / S));
+  const zt = mode === "base" ? 8 : mode === "station" ? 9 + tsZoneNow() : mode === "remodel" ? REMODEL_ZT : mode === "ice" ? ICE_ZT : cellType(Math.floor(P.x / S), Math.floor(P.z / S));
   if (zt !== prevT && mode === "map") {
     if (zt === RED) { redEntry = [P.x, P.z]; say("色調轉紅，地毯變得厚重黏稠，牆紙剝落露出血紅色……應立即轉身離開。", 5500); }
     else if (TELL[zt] && !told.has(zt)) { told.add(zt); say(TELL[zt], 5000); }
@@ -323,6 +329,7 @@ renderer.setAnimationLoop(() => {
       if (P.z < 0) P.z += DS; else if (P.z > DS) P.z -= DS;
     }
     if (fx || sx) { bob += dt * (run ? 12 : 8); if (Math.sin(bob) < -.95 && t - lastStep > .25) { footstep(mode === "map" && P.y < -.1); lastStep = t; } }
+    if (mode === "ice") iceInteract.onTick(dt, t);
     if (mode === "remodel") {
       remodelInteract.onTick(dt, t);
       if (actx && live) {
@@ -357,9 +364,9 @@ renderer.setAnimationLoop(() => {
   redv.style.opacity = redK * (.8 + .2 * Math.sin(t * 6));
   // ambient events: whispers, scratching behind walls, hum surging
   if (actx && live) {
-    if (mode !== "base" && mode !== "remodel") { eventT -= dt; if (eventT <= 0) { eventT = (14 + Math.random() * 25) * (1 - .55 * anom); Math.random() < .5 ? whisper() : scratch(); } }
+    if (mode !== "base" && mode !== "remodel" && mode !== "ice") { eventT -= dt; if (eventT <= 0) { eventT = (14 + Math.random() * 25) * (1 - .55 * anom); Math.random() < .5 ? whisper() : scratch(); } }
     humT -= dt; if (humT <= 0) { humT = 2 + Math.random() * 6; humLevel = Math.random() < .12 ? 2.8 : .7 + Math.random() * .7; }   // rare ear-splitting surge
-    zoneHum += ((zt === DARK ? 0 : mode === "base" ? .12 : (mode === "station" || mode === "remodel") ? 0 : 1) - zoneHum) * Math.min(1, dt * 3);                                // 熄燈區: hum goes silent
+    zoneHum += ((zt === DARK ? 0 : mode === "base" ? .12 : mode === "ice" ? .2 : (mode === "station" || mode === "remodel") ? 0 : 1) - zoneHum) * Math.min(1, dt * 3);                                // 熄燈區: hum goes silent
     humGain.gain.value = .12 * humLevel * zoneHum;
     if (redK > .3) { beatT -= dt; if (beatT <= 0) { heartbeat(); beatT = .95 - .45 * redK; } }
     const ex = exitEdge ? exitEdge.x - P.x : 0, ez = exitEdge ? exitEdge.z - P.z : 0, ed = Math.hypot(ex, ez) || 1;
@@ -367,7 +374,7 @@ renderer.setAnimationLoop(() => {
     exitPan.pan.value = (ex * Math.cos(P.yaw) - ez * Math.sin(P.yaw)) / ed;   // right-hand vector of the camera is (cos, -sin)
   }
   // the figure: vanishes if looked at for a moment or approached
-  if (!live || mode === "base" || mode === "remodel") { /* paused */ }
+  if (!live || mode === "base" || mode === "remodel" || mode === "ice") { /* paused */ }
   else if (!fig.visible) {
     figT -= dt;
     if (figT <= 0 && state === "play") { const a = P.yaw + (Math.random() - .5) * 2.4; fig.position.set(P.x - Math.sin(a) * 16, .95, P.z - Math.cos(a) * 16); fig.visible = true; figSeen = 0; }
@@ -381,9 +388,9 @@ renderer.setAnimationLoop(() => {
   floor.position.set(Math.round(P.x / FL) * FL, 0, Math.round(P.z / FL) * FL);
   ceil.position.x = Math.round(P.x / S) * S; ceil.position.z = Math.round(P.z / S) * S;
   const fl = .65 + .35 * Math.sin(t * 2.2) * Math.sin(t * 1.3 + 1);   // slow pulse, not a strobe
-  exitKind === "ts" ? exitMat.color.setRGB(.42, .48, .54) : exitKind === "r02" ? exitMat.color.setRGB(.96, .92, .88) : exitMat.color.setScalar(fl * 2.2); exitLight.intensity = exitEdge && exitKind !== "ts" ? 9 * fl : 0;                     // the flickering wall
+  exitKind === "ts" ? exitMat.color.setRGB(.42, .48, .54) : exitKind === "r02" ? exitMat.color.setRGB(.96, .92, .88) : exitKind === "ice" ? exitMat.color.setRGB(.74, .9, 1) : exitMat.color.setScalar(fl * 2.2); exitLight.intensity = exitEdge && exitKind !== "ts" ? 9 * fl : 0;                     // the flickering wall
   updateAmbience(zt, dt, t);
-  hud.textContent = mode === "base" ? "LEVEL 1 · ALPHA 基地 · R 重新開始" : mode === "station" ? `LEVEL 0.1 · 天頂站 · ${tsLevel + 1}F · ${[21, -41, 63, 18][zt - 9]}°C` : mode === "remodel" ? remodelHud() : "LEVEL 0";
+  hud.textContent = mode === "base" ? "LEVEL 1 · ALPHA 基地 · R 重新開始" : mode === "station" ? `LEVEL 0.1 · 天頂站 · ${tsLevel + 1}F · ${[21, -41, 63, 18][zt - 9]}°C` : mode === "remodel" ? remodelHud() : mode === "ice" ? iceHud() : "LEVEL 0";
   renderer.toneMapping = THREE.NeutralToneMapping;
   gtao.blendMaterial.uniforms.uFog.value = scene.fog.density;
   grade.uniforms.uTime.value = t; grade.uniforms.uGrain.value = .05 + .05 * anom + .04 * redK; grade.uniforms.uAberr.value = .0015 + .004 * redK;

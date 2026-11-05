@@ -37,7 +37,7 @@ function buildBase() {                 // built on the first visit (or first map
 }
 function enterBase() {
   buildBase();
-  mode = "base"; hemi.groundColor.set(0x8a8a8a); baseGroup.visible = true;   // no yellow bounce light down here
+  mode = "base"; hemi.groundColor.set(0x8a8a8a); baseGroup.visible = true; iceGroup.visible = false;   // no yellow bounce light down here
   floor.visible = ceil.visible = false; fig.visible = false; clearExit(); tsGroup.visible = false; tsFar(120);
   P.x = BX + 2.2; P.z = BZ + 5; P.y = 0; P.yaw = -Math.PI / 2; P.pitch = 0; dropY = 0; fallV = 0;
   fadeEl.style.opacity = 0; state = "play";

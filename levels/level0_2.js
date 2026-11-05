@@ -577,7 +577,7 @@ function enterRemodel() {
   buildRemodel(); resetRemodel();
   rmSaved = mode === "map" ? [P.x, P.z, P.yaw] : [SPAWN[0], SPAWN[1], 0];
   mode = "remodel"; hemi.groundColor.set(0xd9d4ca); remodelGroup.visible = true;
-  baseGroup.visible = tsGroup.visible = false; floor.visible = ceil.visible = false; fig.visible = false; clearExit(); tsFar(180);
+  baseGroup.visible = tsGroup.visible = iceGroup.visible = false; floor.visible = ceil.visible = false; fig.visible = false; clearExit(); tsFar(180);
   const [fc, fd, hi, hc] = AMB[REMODEL_ZT]; scene.fog.color.set(fc); scene.fog.density = fd; hemi.color.set(hc); hemi.intensity = hi;
   const d = RM_DOORS[0]; P.x = d.x + 2; P.z = d.z; P.y = 0; P.yaw = -Math.PI / 2; P.pitch = 0; dropY = 0; fallV = 0;
   fadeEl.style.opacity = 0; state = "play";

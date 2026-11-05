@@ -132,6 +132,72 @@ const MAT = {
   lampAmber: () => bright(0xffd890, 2.4), lampPanel: () => bright(0xfffcf2, 2.6), lampCool: () => new THREE.MeshBasicMaterial({ color: 0xe6f0ff }),
   ledGreen: () => new THREE.MeshBasicMaterial({ color: 0x40ff70 }),
 };
+// ---------- Level 0.3 · 冰室: Level 0's yellow, drained and frozen; rust under peeled paper; the old brick vent shaft ----------
+const ICEP = { base: "#a9a98a", dk: "rgba(70,80,90,.3)", lt: "rgba(220,235,240,.25)", dot: "rgba(90,100,100,.2)" };
+const frostOver = (g, w, h) => {
+  const c = g.createLinearGradient(0, h * .55, 0, h); c.addColorStop(0, "rgba(220,240,252,0)"); c.addColorStop(1, "rgba(220,240,252,.85)");
+  g.fillStyle = c; g.fillRect(0, h * .55, w, h * .45);                                                         // ice crust creeping up from the floor
+  for (let i = 0; i < 40; i++) { const x = Math.random() * w, y = Math.random() * h, r = 12 + Math.random() * 46, gr = g.createRadialGradient(x, y, 1, x, y, r); gr.addColorStop(0, "rgba(235,248,255,.4)"); gr.addColorStop(1, "rgba(235,248,255,0)"); g.fillStyle = gr; g.fillRect(x - r, y - r, 2 * r, 2 * r); }
+  for (let i = 0; i < 1200; i++) { g.fillStyle = `rgba(255,255,255,${Math.random() * .5})`; g.fillRect(Math.random() * w, Math.random() * h, 1 + Math.random() * 2, 1 + Math.random()); }
+  for (let i = 0; i < 9; i++) { const x = Math.random() * w, l = 18 + Math.random() * 50; g.fillStyle = "rgba(225,242,252,.75)"; g.beginPath(); g.moveTo(x - 4, 0); g.lineTo(x + 4, 0); g.lineTo(x, l); g.fill(); }   // icicles under the ceiling
+};
+const iceWallTex = rust => {                 // rust: wallpaper curling off a rusted wall (客廳考古)
+  const t = paper(512, 384, 8, false, ICEP), g = t.image.getContext("2d"), w = 512, h = 384;
+  if (rust) for (let k = 0; k < 7; k++) {
+    const x = Math.random() * w * .85, y = Math.random() * h * .55, sw = 40 + Math.random() * 80, len = 80 + Math.random() * 140, gr = g.createLinearGradient(0, y, 0, y + len);
+    gr.addColorStop(0, "#5a3320"); gr.addColorStop(1, "#8a4a22"); g.fillStyle = gr; g.beginPath(); g.moveTo(x, y);
+    for (let yy = y; yy < y + len; yy += 14) g.lineTo(x + sw + (Math.random() - .5) * 14, yy);
+    for (let yy = y + len; yy > y; yy -= 14) g.lineTo(x + (Math.random() - .5) * 14, yy);
+    g.fill(); g.strokeStyle = "rgba(0,0,0,.45)"; g.lineWidth = 2; g.stroke();
+    g.fillStyle = ICEP.base; g.beginPath(); g.moveTo(x, y + len); g.lineTo(x + sw, y + len); g.lineTo(x + sw * .5, y + len - sw * 1.1); g.closePath(); g.fill(); g.stroke();
+  }
+  frostOver(g, w, h); return t;
+};
+Object.assign(TEX, {
+  iceWall: () => iceWallTex(false), iceWallRust: () => iceWallTex(true),
+  iceFloor: () => tex(256, (g, w) => {
+    g.fillStyle = "#56636d"; g.fillRect(0, 0, w, w); noise(g, w, 9000, .16); g.fillStyle = "rgba(20,30,40,.16)"; for (let y = 0; y < w; y += 3) g.fillRect(0, y, w, 1);
+    for (let i = 0; i < 26; i++) { const x = Math.random() * w, y = Math.random() * w, r = 10 + Math.random() * 34, gr = g.createRadialGradient(x, y, 1, x, y, r); gr.addColorStop(0, "rgba(225,242,252,.55)"); gr.addColorStop(1, "rgba(225,242,252,0)"); g.fillStyle = gr; g.fillRect(x - r, y - r, 2 * r, 2 * r); }
+  }),
+  iceCeil: () => tex(256, (g, w) => {
+    g.fillStyle = "#c9d4da"; g.fillRect(0, 0, w, w); g.fillStyle = "rgba(90,110,125,.25)"; for (let n = 0; n < 2600; n++) g.fillRect(Math.random() * w, Math.random() * w, 1, 1);
+    g.fillStyle = "#8d9ea8"; for (let k = 0; k <= 4; k++) { g.fillRect(k * w / 4 - 2, 0, 4, w); g.fillRect(0, k * w / 4 - 2, w, 4); }
+    for (let i = 0; i < 10; i++) { const x = Math.random() * w, y = Math.random() * w, r = 12 + Math.random() * 30, gr = g.createRadialGradient(x, y, 1, x, y, r); gr.addColorStop(0, "rgba(240,250,255,.6)"); gr.addColorStop(1, "rgba(240,250,255,0)"); g.fillStyle = gr; g.fillRect(x - r, y - r, 2 * r, 2 * r); }
+  }),
+  woolCarpet: () => tex(128, (g, w) => {       // the crew's wool carpet: navy with the company's gold
+    g.fillStyle = "#2c2a5c"; g.fillRect(0, 0, w, w); noise(g, w, 3000, .12); g.strokeStyle = "rgba(211,174,0,.7)"; g.lineWidth = 2;
+    for (let k = 0; k < 2; k++) for (let m = 0; m < 2; m++) { const cx = w / 4 + k * w / 2, cy = w / 4 + m * w / 2; g.beginPath(); g.moveTo(cx, cy - 22); g.lineTo(cx + 22, cy); g.lineTo(cx, cy + 22); g.lineTo(cx - 22, cy); g.closePath(); g.stroke(); }
+  }),
+  brick: () => tex(256, g => {                 // 地下探險: old vent-shaft brick, salt blooming on the mortar
+    g.fillStyle = "#8d8a82"; g.fillRect(0, 0, 256, 256);
+    for (let r = 0; r < 16; r++) for (let c = -1; c < 8; c++) { const x = c * 32 + (r % 2 ? 16 : 0) + 1, y = r * 16 + 1; g.fillStyle = `rgb(${98 + Math.random() * 26 | 0},${64 + Math.random() * 16 | 0},${52 + Math.random() * 14 | 0})`; g.fillRect(x, y, 30, 14); }
+    for (let i = 0; i < 60; i++) { g.fillStyle = `rgba(235,235,225,${Math.random() * .35})`; g.fillRect(Math.random() * 256, Math.random() * 256, 2 + Math.random() * 6, 8 + Math.random() * 30); }
+  }),
+  ventPlate: () => canvasTex(512, 256, (g, w, h) => {   // 一組排氣口: three hatches, the biggest on the right
+    g.fillStyle = "#9cc3c9"; g.fillRect(0, 0, w, h); noise(g, w, 2500, .12);
+    [[20, 120, 150, 90], [190, 100, 120, 105], [330, 20, 160, 215]].forEach(([x, y, vw, vh]) => {
+      g.fillStyle = "#4d5a5d"; g.fillRect(x, y + vh * .38, vw, vh * .62);
+      g.strokeStyle = "#b9c3c0"; g.lineWidth = 3; for (let k = 1; k < 8; k++) { g.beginPath(); g.moveTo(x + k * vw / 8, y + vh * .38); g.lineTo(x + k * vw / 8, y + vh); g.stroke(); }
+      for (let k = 1; k < 5; k++) { g.beginPath(); g.moveTo(x, y + vh * (.38 + k * .124)); g.lineTo(x + vw, y + vh * (.38 + k * .124)); g.stroke(); }
+      g.fillStyle = "#c6d3d0"; g.fillRect(x, y, vw, vh * .34); g.strokeStyle = "#7d6a58"; g.lineWidth = 4; g.strokeRect(x, y, vw, vh);
+      g.fillStyle = "rgba(125,70,35,.5)"; g.fillRect(x + vw * .6, y + vh * .5, 10, vh * .3);
+    });
+  }),
+});
+Object.assign(MAT, {
+  iceWall: () => new THREE.MeshStandardMaterial({ map: getTex("iceWall"), roughness: .75 }),
+  iceWallRust: () => new THREE.MeshStandardMaterial({ map: getTex("iceWallRust"), roughness: .8 }),
+  iceFloor: () => new THREE.MeshStandardMaterial({ map: getTex("iceFloor"), roughness: .6 }),
+  iceCeil: () => new THREE.MeshStandardMaterial({ map: getTex("iceCeil"), roughness: .85 }),
+  woolCarpet: () => new THREE.MeshStandardMaterial({ map: getTex("woolCarpet"), roughness: 1 }),
+  brick: () => new THREE.MeshStandardMaterial({ map: getTex("brick"), roughness: .95, side: THREE.DoubleSide }),
+  ventPlate: () => new THREE.MeshStandardMaterial({ map: getTex("ventPlate"), roughness: .6 }),
+  iceBlock: () => new THREE.MeshStandardMaterial({ color: 0xa9d8ee, roughness: .12, transparent: true, opacity: .6, depthWrite: false }),
+  iceCore: () => new THREE.MeshStandardMaterial({ color: 0x4f86a8, roughness: .4 }),
+  rust: () => flat(0x7a4a2a), hardHat: () => flat(0xf2c200),
+  lampGreen: () => bright(0x40ff70, 2.2),
+});
+
 const _texs = new Map(), _mats = new Map(), _geos = new Map();
 function getTex(name) {
   if (!TEX[name]) throw new Error(`asset library: no texture "${name}"`);

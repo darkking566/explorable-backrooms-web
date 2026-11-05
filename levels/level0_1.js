@@ -305,14 +305,14 @@ function enterStation() {
   if (!tsBuilt) { tsBuilt = true; tsBuildAll(); }
   mode = "station"; tsLevel = TS_START; tsT = tsExp = 0; tsAlarmT = 7; tsCut = 150 + Math.random() * 120; tsFar(700);
   const [fc, fd, hi, hc] = AMB[9]; hemi.groundColor.set(0xd0d0c8); scene.fog.color.set(fc); scene.fog.density = fd; hemi.color.set(hc); hemi.intensity = hi;   // snap the atmosphere: easing from Level 0's yellow would tint the void for seconds
-  tsGroup.visible = true; floor.visible = ceil.visible = false; fig.visible = false;
+  tsGroup.visible = true; iceGroup.visible = false; floor.visible = ceil.visible = false; fig.visible = false;
   P.x = TS_HOME[0]; P.z = TS_HOME[1]; P.y = TS_START * TS_FH; P.yaw = Math.atan2(P.x - CX, P.z - CZ); P.pitch = 0; dropY = 0; fallV = 0;   // facing the glass and the void
   fadeEl.style.opacity = 0; state = "play";
   say("LEVEL 0.1 · 天頂站 ——一座被 Level 0 整個吞進去的球形空間站。", 6000);
   setTimeout(() => mode === "station" && say("玻璃後面是中央空泡：蟲洞本該在那裡打開，如今什麼也沒有。", 6000), 13000);
 }
 function enterMap() {                         // back into Level 0 from the station or the base, where you land is up to the caller
-  mode = "map"; baseGroup.visible = tsGroup.visible = remodelGroup.visible = false; tsFar(120); hemi.groundColor.set(0xa08a3a); floor.visible = ceil.visible = true;
+  mode = "map"; baseGroup.visible = tsGroup.visible = remodelGroup.visible = iceGroup.visible = false; tsFar(120); hemi.groundColor.set(0xa08a3a); floor.visible = ceil.visible = true;
   fadeEl.style.opacity = 0; state = "play";
 }
 function leaveStation(text) {
