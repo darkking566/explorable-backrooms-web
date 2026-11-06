@@ -727,10 +727,12 @@ function pushOut(x0, z0, x1, z1) {
   }
 }
 function collide() {
+  if (mode === "memory") { Memory07.collide(); return; }
   if (mode === "base") { baseCollide(); return; }
   if (mode === "station") { tsCollide(); return; }
   if (mode === "remodel") { remodelCollide(); return; }
   if (mode === "ice") { iceCollide(); return; }
+  if (mode === "infirmary") { infirmaryCollide(); return; }
   const ci = Math.floor(P.x / S), cj = Math.floor(P.z / S);
   for (let i = ci - 1; i <= ci + 1; i++) for (let j = cj - 1; j <= cj + 1; j++) wallBoxes(i, j, pushOut);
   if (P.x > STX - 1 && P.x < STX + 13 && P.z > STZ - 1 && P.z < STZ + 13) {   // stairwell solids: the landing's face from below, its parapet from above, the stair rail
@@ -769,7 +771,7 @@ function spawnExit() {
     if (cellType(i, j) !== N || edgeKind(d, i, j) !== 1) continue;
     const E = d === 'E', x = E ? (i + 1) * S : (i + .5) * S, z = E ? (j + .5) * S : (j + 1) * S, dx = x - P.x, dz = z - P.z, dist = Math.hypot(dx, dz);
     if (dist < 14 || dist > 45 || (dx * -Math.sin(P.yaw) + dz * -Math.cos(P.yaw)) / dist > -.1) continue;   // behind you, so it never pops in view
-    const rk = Math.random(); exitEdge = { d, i, j, x, z }; exitKind = rk < .18 ? "ts" : rk < .42 ? "r02" : rk < .6 ? "ice" : "l1";
+    const rk = Math.random(); exitEdge = { d, i, j, x, z }; exitKind = rk < .15 ? "ts" : rk < .33 ? "r02" : rk < .48 ? "ice" : rk < .62 ? "sub05" : "l1";
     exitMesh.position.set(x, H / 2, z); exitMesh.rotation.y = E ? 0 : Math.PI / 2; exitMesh.scale.set(T + .12, 1, S + T); exitMesh.visible = true;
     exitLight.position.set(x, 1.6, z);
     return true;

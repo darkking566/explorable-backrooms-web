@@ -1,0 +1,239 @@
+{
+  "url": "http://127.0.0.1:64779",
+  "checks": [
+    {
+      "name": "boot",
+      "result": true
+    },
+    {
+      "name": "layout",
+      "result": {
+        "pass": true,
+        "cells": 720,
+        "connected": 720,
+        "safe": true
+      }
+    },
+    {
+      "name": "build",
+      "result": true
+    },
+    {
+      "name": "pointer_lock",
+      "result": true
+    },
+    {
+      "name": "reader_opens",
+      "result": true
+    },
+    {
+      "name": "reader_pauses_survival",
+      "result": true
+    },
+    {
+      "name": "archive_loaded",
+      "result": true
+    },
+    {
+      "name": "sleep_starts",
+      "result": true
+    },
+    {
+      "name": "sleep_lands_on_floor",
+      "result": true
+    },
+    {
+      "name": "map_opens",
+      "result": true
+    },
+    {
+      "name": "map_has_level07",
+      "result": true
+    },
+    {
+      "name": "map_reuses_materials",
+      "result": true
+    },
+    {
+      "name": "four_entity_types",
+      "result": true
+    },
+    {
+      "name": "return_level0",
+      "result": true
+    },
+    {
+      "name": "trip_reset",
+      "result": true
+    },
+    {
+      "name": "main_route_physically_open",
+      "result": true
+    },
+    {
+      "name": "relic_interaction",
+      "result": true
+    },
+    {
+      "name": "archive_interaction",
+      "result": true
+    },
+    {
+      "name": "fire_interaction",
+      "result": true
+    },
+    {
+      "name": "fire_damage",
+      "result": true
+    },
+    {
+      "name": "failure_transition",
+      "result": true
+    },
+    {
+      "name": "failure_keeps_reading",
+      "result": true
+    },
+    {
+      "name": "walking_entry",
+      "result": true
+    },
+    {
+      "name": "walking_return",
+      "result": true
+    },
+    {
+      "name": "hound_test_position",
+      "result": true
+    },
+    {
+      "name": "hound_reacts",
+      "result": true
+    },
+    {
+      "name": "hound_clear_of_walls",
+      "result": true
+    },
+    {
+      "name": "faceling_test_position",
+      "result": true
+    },
+    {
+      "name": "faceling_reacts",
+      "result": true
+    },
+    {
+      "name": "faceling_clear_of_walls",
+      "result": true
+    },
+    {
+      "name": "skin_test_position",
+      "result": true
+    },
+    {
+      "name": "skin_reacts",
+      "result": true
+    },
+    {
+      "name": "skin_clear_of_walls",
+      "result": true
+    },
+    {
+      "name": "growler_test_position",
+      "result": true
+    },
+    {
+      "name": "growler_reacts",
+      "result": true
+    },
+    {
+      "name": "growler_clear_of_walls",
+      "result": true
+    },
+    {
+      "name": "runtime_errors",
+      "result": true
+    }
+  ],
+  "errors": [],
+  "screenshots": [
+    "docs\\level0_7\\evidence\\era-0.png",
+    "docs\\level0_7\\evidence\\era-1.png",
+    "docs\\level0_7\\evidence\\era-2.png",
+    "docs\\level0_7\\evidence\\era-3.png",
+    "docs\\level0_7\\evidence\\era-4.png",
+    "docs\\level0_7\\evidence\\era-5.png"
+  ],
+  "gpu": "ANGLE (Intel, Intel(R) UHD Graphics (0x0000A788) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+  "performance": {
+    "viewport": [
+      1280,
+      720
+    ],
+    "pixelRatio": 1,
+    "frames": 30,
+    "medianMs": 16.400000000001455,
+    "p95Ms": 24.80000000000291,
+    "meanDrawCalls": 434
+  },
+  "comparison": {
+    "level0": {
+      "viewport": [
+        1280,
+        720
+      ],
+      "pixelRatio": 1,
+      "frames": 30,
+      "medianMs": 16.5,
+      "p95Ms": 24.799999999995634,
+      "meanDrawCalls": 444.5
+    },
+    "level0_3": {
+      "viewport": [
+        1280,
+        720
+      ],
+      "pixelRatio": 1,
+      "frames": 30,
+      "medianMs": 16.30000000000291,
+      "p95Ms": 24.599999999998545,
+      "meanDrawCalls": 354.93333333333334
+    },
+    "level0_2": {
+      "viewport": [
+        1280,
+        720
+      ],
+      "pixelRatio": 1,
+      "frames": 30,
+      "medianMs": 24.80000000000291,
+      "p95Ms": 33.400000000001455,
+      "meanDrawCalls": 2117.733333333333
+    }
+  },
+  "renderer": {
+    "geometries": 1429,
+    "textures": 125,
+    "programs": 62,
+    "pixelRatio": 1
+  },
+  "sourceSnapshot": {
+    "index.html": "9c21ecffccba43f8b62b5e0858cd94d160af0cb5c83dca8de9032473bd01c93e",
+    "js/assets.js": "c864de134164673fc736698d021790ba7367111631ce1db0021b03d53504a725",
+    "js/core.js": "f96e2813362abb481ca42d1f53bcd9053568ba95c1186d80780c90ee7d9908ce",
+    "levels/level1.js": "44fd14f862823e79b3b5b061abaec4d81bb582515652424f519f89892bf466d9",
+    "levels/level0_2.js": "515fc226bd5cc0645b050ab5bf0f3a14aedebf077b6cf08f82bf87a0529aece2",
+    "levels/level0_3.js": "e207abf9d908bde11e0c65c8b3123f821075b37d79c10a49c54230d7f7cde27b",
+    "levels/level0_5.js": "c41b9002ec5f192114fbe9c094aa23e168ba70d6aa0b40604ed6b300e3a8ea00",
+    "levels/level0_1.js": "3aa49d0beac38304f139662333fe543c2a27c90b16e0d3492338f67ef78f5b48",
+    "levels/level0_7.js": "78c9449ecd602c8ed916b6ffd4f21d5a66f8435addd18cb0ab25e3980e7441d5",
+    "js/game.js": "a44e007ba8755c174a1ea4b7a6ee2488c7fdf16614b11e4a9d22156dd47bb8cb"
+  },
+  "acceptance": {
+    "automated": "passed",
+    "realBrowser": "passed",
+    "driver": "pending",
+    "longPlayBalance": "not-verified",
+    "subjectiveAudio": "not-verified"
+  }
+}

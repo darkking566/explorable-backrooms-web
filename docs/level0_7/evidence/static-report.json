@@ -1,0 +1,14 @@
+{
+  "pass": true,
+  "scripts": 9,
+  "archives": 10,
+  "images": 9,
+  "checks": [
+    "shared-scope syntax",
+    "load order",
+    "complete local archives",
+    "local image paths",
+    "no executable wiki scripts",
+    "story landmarks"
+  ]
+}

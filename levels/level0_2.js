@@ -371,6 +371,73 @@ function buildRemodel() {
     act(rx, RZ + 1.8, 2, "【按 E】連線後室裝修公司 Wi-Fi 路由器", () => say("『BRC-Remodel_5G』信號滿格。但瀏覽器只能打開一個頁面：後室裝修公司的企業官網，橫幅閃爍著標語——真正的整潔來自於裝潢。", 6000));
   }
 
+  // ===== 6. 填充層：把空曠大廳隔成走道、貨架與柱廊（全部避開既有家具、互動點與出口門） =====
+  const clear = (x0, z0, x1, z1, m) => x0 > RX + 1 && x1 < RX + RW - 1 && z0 > RZ + 1 && z1 < RZ + RD - 1 &&
+    !REMODEL_BOXES.some(b => x1 + m > b[0] && x0 - m < b[2] && z1 + m > b[1] && z0 - m < b[3]) &&
+    !RM_ACTS.some(a => a.x > x0 - 1.7 && a.x < x1 + 1.7 && a.z > z0 - 1.7 && a.z < z1 + 1.7) &&
+    !RM_DOORS.some(d => Math.hypot((x0 + x1) / 2 - d.x, (z0 + z1) / 2 - d.z) < 6);
+  const fr = mulberry(311), crateM = getMat("crate");
+
+  // 6a. 錯位的矮隔間（同樣會一片片塌）；面板碰到東西就略過，留成缺口當門洞
+  const finRun = (x0, z0, x1, z1) => {
+    const v = x0 === x1, L = v ? z1 - z0 : x1 - x0, n = Math.ceil(L / RC), seg = L / n;
+    for (let k = 0; k < n; k++) {
+      const x = v ? x0 : x0 + (k + .5) * seg, z = v ? z0 + (k + .5) * seg : z0, hx = v ? .15 : seg / 2, hz = v ? seg / 2 : .15;
+      if (!clear(x - hx, z - hz, x + hx, z + hz, .9)) continue;
+      const mesh = add(rmGeo(`w${seg.toFixed(2)}`, () => new THREE.BoxGeometry(seg, RH, .3)), rmWallMat(seg, fr() < .2), x, RH / 2, z, v ? Math.PI / 2 : 0);
+      const w = { x, z, v, len: seg, mesh, box: [x - hx, z - hz, x + hx, z + hz], state: 0 };
+      RM_WALLS.push(w); REMODEL_BOXES.push(w.box);
+    }
+  };
+  [[30, 3, 30, 14], [6, 21, 20, 21], [34, 16, 34, 26],                          // 接待
+    [50, 12, 50, 26], [78, 6, 78, 20], [44, 21, 54, 21],                        // 客廳
+    [92, 8, 92, 22], [112, 9, 124, 9], [100, 22, 118, 22],                      // 廚房
+    [3, 51, 14, 51], [22, 34, 22, 45], [36, 37, 36, 49], [20, 59, 20, 64],      // 辦公
+    [46, 34, 46, 47], [62, 33, 74, 33], [50, 58, 62, 58], [78, 40, 78, 52],     // 主臥
+    [92, 50, 92, 62], [100, 41, 100, 50], [118, 33, 118, 46], [102, 60, 118, 60], // 衛浴
+    [52, 77, 52, 91], [60, 81, 60, 95], [74, 77, 74, 90], [44, 83, 50, 83],     // 樣品間
+    [8, 66, 8, 73], [34, 68, 34, 80],                                           // 豆腐渣
+  ].forEach(a => finRun(...a.map((c, k) => c + (k % 2 ? RZ : RX))));
+
+  // 6b. 結構柱廊
+  const pilM = getMat("concreteFloor", 1, 4);
+  for (let px = 6; px < RW; px += 12) for (let pz = 6; pz < RD; pz += 12) {
+    const x = RX + px, z = RZ + pz;
+    if (clear(x - .4, z - .4, x + .4, z + .4, 1.1)) addSolid(.8, RH, .8, pilM, x, RH / 2, z);
+  }
+
+  // 6c. 金屬貨架（沿牆與走道），架上堆紙箱
+  const rack = (x, z, len, vert) => {
+    const hx = vert ? .45 : len / 2, hz = vert ? len / 2 : .45;
+    if (!clear(x - hx, z - hz, x + hx, z + hz, 1.1)) return;
+    const at = (a, b) => vert ? [x + b, z + a] : [x + a, z + b];
+    for (let lv = 0; lv < 3; lv++) {
+      const [sx, sz] = at(0, 0); box(vert ? .8 : len, .05, vert ? len : .8, plyM, sx, .3 + lv * .85, sz);
+      for (let a = -len / 2 + .4; a < len / 2 - .3; a += .7 + fr() * .6)
+        if (fr() < .7) { const [cx, cz] = at(a, 0), h = .3 + fr() * .3; box(.55 + fr() * .2, h, .55, crateM, cx, .33 + lv * .85 + h / 2, cz, fr() * .3); }
+    }
+    for (let a = -len / 2; a <= len / 2 + .01; a += len / Math.ceil(len / 2)) for (const b of [-.37, .37]) { const [px, pz] = at(a, b); box(.06, 2.6, .06, getMat("steel"), px, 1.3, pz); }
+    solidBox([x - hx, z - hz, x + hx, z + hz]);
+  };
+  for (let z = 70; z < 92; z += 5) rack(RX + 86.6, RZ + z + 2, 4.6, true);       // 倉儲：貼西牆一排
+  for (const x of [91.5, 98, 111.5, 123.5]) for (let z = 66; z < 94; z += 5) rack(RX + x, RZ + z + 2.5, 4.6, true);   //       縱向貨架走道
+  for (let x = 46; x < 82; x += 7) for (const z of [76, 88]) rack(RX + x + 3, RZ + z, 6, false);   // 樣品倉：橫向貨架列
+  for (let x = 98; x < 124; x += 6) rack(RX + x + 2, RZ + 93.6, 5.4, false);      //       貼南牆
+  for (let x = 46; x < 82; x += 6) rack(RX + x + 2, RZ + 93.6, 5.4, false);       // 樣品倉：貼南牆
+  for (let z = 4; z < 26; z += 5) rack(RX + 125, RZ + z + 2.5, 4.6, true);        // 廚房東牆儲物架
+  for (let x = 88; x < 124; x += 6) rack(RX + x + 2, RZ + 30.6, 5.4, false);      // 衛浴北隔牆耗材架
+  for (let z = 30; z < 62; z += 5) rack(RX + 2.1, RZ + z + 2, 4.6, true);         // 辦公：貼西牆檔案架
+
+  // 6d. 散落的紙箱、棧板與工具箱：靠牆多，中間少
+  const cr = mulberry(97);
+  for (let n = 0, ok = 0; n < 900 && ok < 170; n++) {
+    const x = RX + 2 + cr() * (RW - 4), z = RZ + 2 + cr() * (RD - 4), w = .6 + cr() * .6, d = .6 + cr() * .6, h = .4 + cr() * .7;
+    if (!clear(x - w / 2, z - d / 2, x + w / 2, z + d / 2, .8)) continue;
+    addSolid(w, h, d, crateM, x, h / 2, z);
+    if (cr() < .35 && h < .8) box(w * .7, .4, d * .7, crateM, x, h + .2, z, cr() * 3);
+    ok++;
+  }
+
   const dyn = new THREE.Group(); remodelGroup.add(dyn);
   RMB = { G, studM, plyM, joistM, pitM, holeM, carpetM, ceilTileM: getMat("ceilingTile"), lightM, offM, carpet, ceilingLights, leds, clipGlow, dyn, duct };
 }

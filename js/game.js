@@ -12,12 +12,15 @@ function toggleDoc(on = !docOpen) {
 }
 document.getElementById("docClose").onclick = () => toggleDoc(false);
 addEventListener("keydown", e => {
+  if (mode === "memory" && e.repeat && ["KeyE", "KeyJ", "KeyF"].includes(e.code)) { e.preventDefault(); return; }
+  if (mode === "memory" && !e.repeat && Memory07.key(e.code)) { e.preventDefault(); return; }
   keys[e.code] = true;
-  if (e.code === "KeyR" && (mode === "base" || mode === "remodel" || mode === "ice")) location.reload();
+  if (e.code === "KeyR" && (mode === "base" || mode === "remodel" || mode === "ice" || mode === "infirmary")) location.reload();
   if (e.code === "KeyE") {
     if (docOpen) { toggleDoc(false); }
     else if (mode === "remodel") remodelInteract.onKeyE();
     else if (mode === "ice") iceInteract.onKeyE();
+    else if (mode === "infirmary") infirmaryInteract.onKeyE();
   }
   if (e.code === "Escape" && docOpen) { toggleDoc(false); }
 });
@@ -30,6 +33,7 @@ document.addEventListener("pointerlockchange", () => {
   ov.style.display = on || mapOpen ? "none" : "flex";
   if (actx) on ? actx.resume() : actx.suspend();                                  // pause silences the world too
   if (on) { const t = document.getElementById("title"); t.style.opacity = mode === "map" ? 1 : 0; setTimeout(() => t.style.opacity = 0, 4500); }
+  if (!on) for (const k in keys) keys[k] = false;
 });
 document.addEventListener("mousemove", e => {
   if (document.pointerLockElement !== renderer.domElement) return;
@@ -126,7 +130,7 @@ function respawn(text, wait) {
   setTimeout(() => { if (mode === "station") tsLevel = TS_START; const home = mode === "station" ? TS_HOME : pickSpawn(); P.x = home[0]; P.z = home[1]; if (mode !== "station") P.yaw = Math.random() * Math.PI * 2; P.y = mode === "station" ? tsLevel * TS_FH : 0; dropY = 0; fallV = 0; fadeEl.style.opacity = 0; state = "play"; }, wait);
 }
 function ending() {
-  const ts = exitKind === "ts", r02 = exitKind === "r02", ice = exitKind === "ice";
+  const ts = exitKind === "ts", r02 = exitKind === "r02", ice = exitKind === "ice", sub05 = exitKind === "sub05";
   state = "wait";
   fadeEl.innerHTML = ts
     ? "金屬滑門無聲地打開，你走了進去……<br><b>LEVEL 0.1 · 天頂站</b>"
@@ -134,11 +138,13 @@ function ending() {
     ? "燈管的嗡鳴忽然平息，腳下的地毯變得乾燥……你推開一扇嶄新的白色木門。<br><b>LEVEL 0.2 · 重塑的混亂</b>"
     : ice
     ? "牆上的光變得蒼白，空氣刺骨……你呼出的氣息結成白霧。<br><b>LEVEL 0.3 · 冰室</b>"
+    : sub05
+    ? "發霉衣物的刺鼻氣味撲面而來，冰冷的水花在腳下濺起……<br><b>LEVEL 0.5 · 淵閉療舍</b>"
     : "你縱身躍入閃爍的牆壁……<br><b>LEVEL 1</b>";
   fadeEl.style.opacity = 1;
-  setTimeout(ts ? enterStation : r02 ? enterRemodel : ice ? enterIce : enterBase, 3200);
+  setTimeout(ts ? enterStation : r02 ? enterRemodel : ice ? enterIce : sub05 ? enterInfirmary : enterBase, 3200);
 }
-window.bk = { P, PITS, cellType, BLOCKS, carve, rebuild, wallE, wallS, edgeKind, floorH, pickSpawn, scene, camera, enterBase, enterStation, enterRemodel, leaveRemodel, enterIce, leaveIce, setLevel: l => { tsLevel = l; }, tsS, tsP, tsCollide, tsStand, tsTick, TS_DOOR, spawnExit, spawnPit, get exitEdge() { return exitEdge; } };    // handle for debugging in the console
+window.bk = { P, PITS, cellType, BLOCKS, carve, rebuild, wallE, wallS, edgeKind, floorH, pickSpawn, scene, camera, enterBase, enterStation, enterRemodel, leaveRemodel, enterIce, leaveIce, enterInfirmary, leaveInfirmary, setLevel: l => { tsLevel = l; }, tsS, tsP, tsCollide, tsStand, tsTick, TS_DOOR, spawnExit, spawnPit, get exitEdge() { return exitEdge; } };    // handle for debugging in the console
 
 // ---------- 地圖: a Google-Maps-style 3D overview; drag the pegman onto a cell to drop in there ----------
 const MAP_COL = { [N]: 0xf1e7a8, [ARCH]: 0xead3b0, [PIL]: 0xd3e2bd, [PIT]: 0xc9c9c9, [DARK]: 0x9aa3b5, [RED]: 0xe9a3a0, [MAN]: 0xdcc6ec, [STAIR]: 0xb4d3ea, [WAIT]: 0xf0e08a, [LEDGE]: 0xd7e0c3, [ATRIUM]: 0xf4c98f };
@@ -148,6 +154,8 @@ const PLACES = BLOCKS.filter(b => b !== blockOf(MAN_X, MAN_Y) && b !== blockOf(S
 const MAP_WALL = .6;                          // walls are drawn at 60% height so the floor plan stays readable when tilted
 const PEG_SVG = '<svg viewBox="0 0 24 32"><circle cx="12" cy="6" r="4.5" fill="#f9ab00"/><path d="M5 30l3-14a4 4 0 0 1 8 0l3 14z" fill="#f9ab00" stroke="#fff" stroke-width="1.2"/></svg>';
 const $ = id => document.getElementById(id);
+PLACES.push(["憶域通路", .8, 5.5 * S]);
+window.bk.memory07 = Memory07;
 const mapEl = $("map"), mapScene = new THREE.Scene(), mapWorld = new THREE.Group(), mapCam = new THREE.PerspectiveCamera(45, 1, 1, 1500);
 mapScene.background = new THREE.Color(0xe8eaed); mapScene.add(mapWorld);
 mapScene.add(new THREE.HemisphereLight(0xffffff, 0xb8bcc8, .8));
@@ -173,8 +181,13 @@ function mkLabels(list, w) {                  // place names, white-haloed like 
   }
   return grp;
 }
-const l0Labels = mkLabels(PLACES, 16), tsLabels = mkLabels(TS_PLACES, 30), baseLabels = mkLabels(BASE_PLACES, 5), remodelLabels = mkLabels(REMODEL_PLACES, 8), iceLabels = mkLabels(ICE_PLACES, 8);
-const MAP_LISTS = { map: PLACES, station: TS_PLACES, base: BASE_PLACES, remodel: REMODEL_PLACES, ice: ICE_PLACES };
+const l0Labels = mkLabels(PLACES, 16), tsLabels = mkLabels(TS_PLACES, 30), baseLabels = mkLabels(BASE_PLACES, 5), remodelLabels = mkLabels(REMODEL_PLACES, 8), iceLabels = mkLabels(ICE_PLACES, 8), infirmaryLabels = mkLabels(INFIRMARY_PLACES, 8);
+const MAP_LISTS = { map: PLACES, station: TS_PLACES, base: BASE_PLACES, remodel: REMODEL_PLACES, ice: ICE_PLACES, infirmary: INFIRMARY_PLACES };
+MAP_LISTS.memory = Memory07.places;
+const memoryLabels = mkLabels(Memory07.places, 11);
+const memoryLevelButton = document.createElement("button");
+memoryLevelButton.dataset.m = "memory"; memoryLevelButton.title = "憶域"; memoryLevelButton.textContent = "Level 0.7";
+$("mapLevels").insertBefore(memoryLevelButton, $("mapLevels").querySelector('[data-m="base"]'));
 $("mapPl").innerHTML = [...new Set(PLACES.map(p => p[0]))].map(n => `<option value="${n}">`).join("");
 $("peg").innerHTML = PEG_SVG; $("pegGhost").innerHTML = PEG_SVG;
 
@@ -182,11 +195,14 @@ $("peg").innerHTML = PEG_SVG; $("pegGhost").innerHTML = PEG_SVG;
 function buildMap() {
   mapWorld.traverse(o => o.isInstancedMesh && o.dispose());
   mapWorld.clear();
-  l0Labels.visible = mapMode === "map"; tsLabels.visible = mapMode === "station"; baseLabels.visible = mapMode === "base"; remodelLabels.visible = mapMode === "remodel"; iceLabels.visible = mapMode === "ice"; decks.style.display = mapMode === "station" ? "flex" : "none";
+  memoryLabels.visible = mapMode === "memory";
+  l0Labels.visible = mapMode === "map"; tsLabels.visible = mapMode === "station"; baseLabels.visible = mapMode === "base"; remodelLabels.visible = mapMode === "remodel"; iceLabels.visible = mapMode === "ice"; infirmaryLabels.visible = mapMode === "infirmary"; decks.style.display = mapMode === "station" ? "flex" : "none";
   if (mapMode === "station") return buildStationMap();
   if (mapMode === "base") return buildBaseMap();
   if (mapMode === "remodel") return buildRemodelMap();
   if (mapMode === "ice") return buildIceMap();
+  if (mapMode === "infirmary") return buildInfirmaryMap();
+  if (mapMode === "memory") return Memory07.mapBuild();
   const col = new THREE.Color(), floors = new THREE.InstancedMesh(flatGeo, new THREE.MeshLambertMaterial(), W * D), walls = [], pillars = [];
   for (let i = 0; i < W; i++) for (let j = 0; j < D; j++) {
     const k = j * W + i;
@@ -214,11 +230,13 @@ const decks = $("mapDecks"), syncDecks = () => decks.querySelectorAll("button").
 decks.innerHTML = Array.from({ length: TS_N }, (_, k) => TS_N - k).map(n => `<button data-d="${n - 1}" aria-label="第 ${n} 層甲板">${n}</button>`).join("");
 decks.onclick = e => { const d = e.target.dataset.d; if (d == null) return; mapDeck = +d; buildMap(); syncDecks(); };
 const MAP_VIEW = {                            // how each level's map is framed to fit, and how big its marker and drop tile are
+  memory: { x: Memory07.layout.X0 + Memory07.layout.WIDTH / 2, z: Memory07.layout.Z0 + Memory07.layout.DEPTH / 2, up: 330, back: 190, max: 700, min: 10, mark: 1, tile: .8 },
   map: { x: WS / 2, z: DS / 2, up: DS, back: DS * .9, max: 320, min: 10, mark: 1, tile: 1 },
   station: { x: CX, z: CZ, up: 380, back: 360, max: 800, min: 10, mark: 3, tile: .5 },
   base: { x: BX + BRW / 2, z: BZ + BRD / 2, up: 16, back: 14, max: 60, min: 5, mark: .4, tile: .3 },
   remodel: { x: RX + RW / 2, z: RZ + RD / 2, up: 110, back: 95, max: 280, min: 10, mark: .8, tile: .6 },
   ice: { x: IX + IW / 2, z: IZ + ID / 2, up: 105, back: 90, max: 280, min: 10, mark: .8, tile: .6 },
+  infirmary: { x: HX + H_W / 2, z: HZ + H_D / 2, up: 95, back: 80, max: 280, min: 10, mark: .8, tile: .6 },
 };
 const levelBtns = $("mapLevels");
 function setMapLevel(m) {
@@ -251,6 +269,7 @@ $("map3d").onclick = () => { const flat = mapCtl.getPolarAngle() > .2; setView(m
 $("mapQ").addEventListener("keydown", e => { if (e.key !== "Enter") return; const p = MAP_LISTS[mapMode].find(p => p[0].includes(e.target.value.trim())); if (p) flyTo(p[1], p[2]); });
 addEventListener("keydown", e => {
   if (e.target.tagName === "INPUT") return;
+  if (docOpen) return;
   if (e.code === "KeyM" && !e.repeat) toggleMap(); else if (e.code === "Escape" && mapOpen) toggleMap(false);
 });
 
@@ -268,7 +287,7 @@ function tsStand(x, z) {                      // on a deck's floor, between the 
   if (ok) tsCands(s, (r, w) => { const p = s - w; if (p > r[0] - P.r && p < r[2] + P.r && u > r[1] - P.r && u < r[3] + P.r) ok = false; });
   return ok;
 }
-const canStand = c => mapMode === "station" ? tsStand(c.x, c.z) : mapMode === "base" ? baseStand(c.x, c.z) : mapMode === "remodel" ? remodelStand(c.x, c.z) : mapMode === "ice" ? iceStand(c.x, c.z) : cellType(c.i, c.j) !== STAIR && !pitHit(c.x, c.z);   // Level 0 skips the stairwell: its landing is solid, not ground
+const canStand = c => mapMode === "memory" ? Memory07.stand(c.x, c.z) : mapMode === "station" ? tsStand(c.x, c.z) : mapMode === "base" ? baseStand(c.x, c.z) : mapMode === "remodel" ? remodelStand(c.x, c.z) : mapMode === "ice" ? iceStand(c.x, c.z) : mapMode === "infirmary" ? infirmaryStand(c.x, c.z) : cellType(c.i, c.j) !== STAIR && !pitHit(c.x, c.z);   // Level 0 skips the stairwell: its landing is solid, not ground
 const peg = $("peg"), ghost = $("pegGhost");
 let pegDrag = false;
 function pegMove(e) {
@@ -286,9 +305,10 @@ peg.addEventListener("pointerup", e => {
   if (!pegDrag) return;
   const c = cellAt(e.clientX, e.clientY); pegEnd();
   if (!c || !canStand(c)) return;
-  if (mapMode !== mode) (mapMode === "station" ? enterStation : mapMode === "base" ? enterBase : mapMode === "remodel" ? enterRemodel : mapMode === "ice" ? enterIce : enterMap)();   // dropping onto another level's map moves you there
+  if (mapMode !== mode) (mapMode === "memory" ? Memory07.enter : mapMode === "station" ? enterStation : mapMode === "base" ? enterBase : mapMode === "remodel" ? enterRemodel : mapMode === "ice" ? enterIce : mapMode === "infirmary" ? enterInfirmary : enterMap)();   // dropping onto another level's map moves you there
   if (mapMode === "station") tsLevel = mapDeck;
   P.x = c.x; P.z = c.z; P.yaw = mapCtl.getAzimuthalAngle(); P.pitch = 0; P.y = floorH(P.x, P.z); dropY = fallV = 0; redEntry = [P.x, P.z]; fig.visible = false;
+  if (mode === "memory") Memory07.onTeleport();
   toggleMap(false); startAudio(); renderer.domElement.requestPointerLock()?.catch?.(() => {});
 });
 function mapFrame() {
@@ -304,9 +324,10 @@ function mapFrame() {
 const clock = new THREE.Clock(), hud = document.getElementById("hud");
 let bob = 0, lastStep = 0;
 renderer.setAnimationLoop(() => {
+  Memory07.sync();
   if (mapOpen) return mapFrame();
   const dt = Math.min(clock.getDelta(), .05), t = clock.elapsedTime;
-  const zt = mode === "base" ? 8 : mode === "station" ? 9 + tsZoneNow() : mode === "remodel" ? REMODEL_ZT : mode === "ice" ? ICE_ZT : cellType(Math.floor(P.x / S), Math.floor(P.z / S));
+  const zt = mode === "memory" ? Memory07.zone() : mode === "base" ? 8 : mode === "station" ? 9 + tsZoneNow() : mode === "remodel" ? REMODEL_ZT : mode === "ice" ? ICE_ZT : mode === "infirmary" ? INFIRMARY_ZT : cellType(Math.floor(P.x / S), Math.floor(P.z / S));
   if (zt !== prevT && mode === "map") {
     if (zt === RED) { redEntry = [P.x, P.z]; say("色調轉紅，地毯變得厚重黏稠，牆紙剝落露出血紅色……應立即轉身離開。", 5500); }
     else if (TELL[zt] && !told.has(zt)) { told.add(zt); say(TELL[zt], 5000); }
@@ -316,7 +337,7 @@ renderer.setAnimationLoop(() => {
   const live = document.pointerLockElement === renderer.domElement;   // unlocked = paused: no timers, events or figure
   const anom = Math.min(1, pt / 540);                                 // 0..1: how strange the level has become
   if (live && state === "play") {
-    const run = keys.ShiftLeft || keys.ShiftRight, sp = (run ? 5.2 : 2.8) * (zt === RED ? .6 : 1) * (zt === DARK ? .85 : 1);
+    const run = keys.ShiftLeft || keys.ShiftRight, sp = (run ? 5.2 : 2.8) * (zt === RED ? .6 : 1) * (zt === DARK ? .85 : 1) * (mode === "memory" ? Memory07.speed() : 1);
     const fx = (keys.KeyW || keys.ArrowUp ? 1 : 0) - (keys.KeyS || keys.ArrowDown ? 1 : 0);
     const sx = (keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0);
     const len = Math.hypot(fx, sx) || 1, s = Math.sin(P.yaw), c = Math.cos(P.yaw);
@@ -325,11 +346,15 @@ renderer.setAnimationLoop(() => {
     const steps = Math.ceil(Math.hypot(vx, vz) / .1) || 1;
     for (let i = 0; i < steps; i++) { P.x += vx / steps; P.z += vz / steps; collide(); }
     if (mode === "map") {                    // the outer doorways wrap around: leave on one side, arrive on the other
-      if (P.x < 0) P.x += WS; else if (P.x > WS) P.x -= WS;
-      if (P.z < 0) P.z += DS; else if (P.z > DS) P.z -= DS;
+      if (Memory07.gate()) Memory07.enter({ walk: true });
+      if (mode === "map") {
+        if (P.x < 0) P.x += WS; else if (P.x > WS) P.x -= WS;
+        if (P.z < 0) P.z += DS; else if (P.z > DS) P.z -= DS;
+      }
     }
-    if (fx || sx) { bob += dt * (run ? 12 : 8); if (Math.sin(bob) < -.95 && t - lastStep > .25) { footstep(mode === "map" && P.y < -.1); lastStep = t; } }
+    if (fx || sx) { bob += dt * (run ? 12 : 8); if (Math.sin(bob) < -.95 && t - lastStep > .25) { footstep((mode === "map" && P.y < -.1) || (mode === "infirmary" && P.x < H_WATER_X)); lastStep = t; } }
     if (mode === "ice") iceInteract.onTick(dt, t);
+    if (mode === "infirmary") infirmaryInteract.onTick(dt, t);
     if (mode === "remodel") {
       remodelInteract.onTick(dt, t);
       if (actx && live) {
@@ -355,6 +380,7 @@ renderer.setAnimationLoop(() => {
       else if ((exitLife -= dt) <= 0) { clearExit(); exitT = 30 + Math.random() * 50; }
     } else if (mode === "station") tsTick(dt);
   }
+  if (mode === "memory") Memory07.tick(dt, t);
   if (state === "fall") fall(dt);
   P.y += (floorH(P.x, P.z) - P.y) * Math.min(1, dt * 14);
   // the red room: tunnel vision, a wavering field of view, a pounding heart
@@ -364,9 +390,9 @@ renderer.setAnimationLoop(() => {
   redv.style.opacity = redK * (.8 + .2 * Math.sin(t * 6));
   // ambient events: whispers, scratching behind walls, hum surging
   if (actx && live) {
-    if (mode !== "base" && mode !== "remodel" && mode !== "ice") { eventT -= dt; if (eventT <= 0) { eventT = (14 + Math.random() * 25) * (1 - .55 * anom); Math.random() < .5 ? whisper() : scratch(); } }
+    if (mode !== "memory" && mode !== "base" && mode !== "remodel" && mode !== "ice" && mode !== "infirmary") { eventT -= dt; if (eventT <= 0) { eventT = (14 + Math.random() * 25) * (1 - .55 * anom); Math.random() < .5 ? whisper() : scratch(); } }
     humT -= dt; if (humT <= 0) { humT = 2 + Math.random() * 6; humLevel = Math.random() < .12 ? 2.8 : .7 + Math.random() * .7; }   // rare ear-splitting surge
-    zoneHum += ((zt === DARK ? 0 : mode === "base" ? .12 : mode === "ice" ? .2 : (mode === "station" || mode === "remodel") ? 0 : 1) - zoneHum) * Math.min(1, dt * 3);                                // 熄燈區: hum goes silent
+    zoneHum += ((mode === "memory" ? (Memory07.eraAt(P.x) === 0 ? .5 : .08) : zt === DARK ? 0 : mode === "base" ? .12 : mode === "ice" ? .2 : mode === "infirmary" ? .1 : (mode === "station" || mode === "remodel") ? 0 : 1) - zoneHum) * Math.min(1, dt * 3);                                // 熄燈區: hum goes silent
     humGain.gain.value = .12 * humLevel * zoneHum;
     if (redK > .3) { beatT -= dt; if (beatT <= 0) { heartbeat(); beatT = .95 - .45 * redK; } }
     const ex = exitEdge ? exitEdge.x - P.x : 0, ez = exitEdge ? exitEdge.z - P.z : 0, ed = Math.hypot(ex, ez) || 1;
@@ -374,7 +400,7 @@ renderer.setAnimationLoop(() => {
     exitPan.pan.value = (ex * Math.cos(P.yaw) - ez * Math.sin(P.yaw)) / ed;   // right-hand vector of the camera is (cos, -sin)
   }
   // the figure: vanishes if looked at for a moment or approached
-  if (!live || mode === "base" || mode === "remodel" || mode === "ice") { /* paused */ }
+  if (!live || mode === "memory" || mode === "base" || mode === "remodel" || mode === "ice" || mode === "infirmary") { /* paused */ }
   else if (!fig.visible) {
     figT -= dt;
     if (figT <= 0 && state === "play") { const a = P.yaw + (Math.random() - .5) * 2.4; fig.position.set(P.x - Math.sin(a) * 16, .95, P.z - Math.cos(a) * 16); fig.visible = true; figSeen = 0; }
@@ -388,9 +414,9 @@ renderer.setAnimationLoop(() => {
   floor.position.set(Math.round(P.x / FL) * FL, 0, Math.round(P.z / FL) * FL);
   ceil.position.x = Math.round(P.x / S) * S; ceil.position.z = Math.round(P.z / S) * S;
   const fl = .65 + .35 * Math.sin(t * 2.2) * Math.sin(t * 1.3 + 1);   // slow pulse, not a strobe
-  exitKind === "ts" ? exitMat.color.setRGB(.42, .48, .54) : exitKind === "r02" ? exitMat.color.setRGB(.96, .92, .88) : exitKind === "ice" ? exitMat.color.setRGB(.74, .9, 1) : exitMat.color.setScalar(fl * 2.2); exitLight.intensity = exitEdge && exitKind !== "ts" ? 9 * fl : 0;                     // the flickering wall
+  exitKind === "ts" ? exitMat.color.setRGB(.42, .48, .54) : exitKind === "r02" ? exitMat.color.setRGB(.96, .92, .88) : exitKind === "ice" ? exitMat.color.setRGB(.74, .9, 1) : exitKind === "sub05" ? exitMat.color.setRGB(.22, .75, .95) : exitMat.color.setScalar(fl * 2.2); exitLight.intensity = exitEdge && exitKind !== "ts" ? 9 * fl : 0;                     // the flickering wall
   updateAmbience(zt, dt, t);
-  hud.textContent = mode === "base" ? "LEVEL 1 · ALPHA 基地 · R 重新開始" : mode === "station" ? `LEVEL 0.1 · 天頂站 · ${tsLevel + 1}F · ${[21, -41, 63, 18][zt - 9]}°C` : mode === "remodel" ? remodelHud() : mode === "ice" ? iceHud() : "LEVEL 0";
+  hud.textContent = mode === "memory" ? Memory07.hud() : mode === "base" ? "LEVEL 1 · ALPHA 基地 · R 重新開始" : mode === "station" ? `LEVEL 0.1 · 天頂站 · ${tsLevel + 1}F · ${[21, -41, 63, 18][zt - 9]}°C` : mode === "remodel" ? remodelHud() : mode === "ice" ? iceHud() : mode === "infirmary" ? infirmaryHud() : "LEVEL 0";
   renderer.toneMapping = THREE.NeutralToneMapping;
   gtao.blendMaterial.uniforms.uFog.value = scene.fog.density;
   grade.uniforms.uTime.value = t; grade.uniforms.uGrain.value = .05 + .05 * anom + .04 * redK; grade.uniforms.uAberr.value = .0015 + .004 * redK;

@@ -48,14 +48,23 @@ function paper(w, h, n, peel, pal = YEL) {
       gr.addColorStop(0, "rgba(80,60,10,.25)"); gr.addColorStop(1, "rgba(80,60,10,0)");
       g.save(); g.translate(Math.random() * w, 0); g.fillStyle = gr; g.fillRect(0, 0, p * .08, len); g.restore();
     }
-    if (peel) for (let k = 0; k < 6; k++) {
-      const x = Math.random() * w * .9, sw = w * (.06 + Math.random() * .09), y0 = Math.random() * h * .3, len = h * (.3 + Math.random() * .55);
+    if (peel) for (let k = 0; k < 4; k++) {   // paper torn off from the top: bare pale plaster with a dark wet stain, a curled flap hanging at the bottom
+      const x = (k + .15 + Math.random() * .6) * w / 4, sw = w * (.07 + Math.random() * .05), y0 = -4, len = h * (.35 + Math.random() * .4);
       g.beginPath(); g.moveTo(x, y0);
-      for (let y = y0; y < y0 + len; y += 16) g.lineTo(x + sw + (Math.random() - .5) * 9, y);
-      for (let y = y0 + len; y > y0; y -= 16) g.lineTo(x + (Math.random() - .5) * 9, y);
-      const gr = g.createLinearGradient(0, y0, 0, y0 + len); gr.addColorStop(0, "#3d0404"); gr.addColorStop(1, "#8c1212");
-      g.fillStyle = gr; g.fill(); g.strokeStyle = "rgba(0,0,0,.5)"; g.lineWidth = 3; g.stroke();
-      g.fillStyle = pal.base; g.beginPath(); g.moveTo(x, y0 + len); g.lineTo(x + sw, y0 + len); g.lineTo(x + sw * .5, y0 + len - sw * 1.1); g.closePath(); g.fill(); g.stroke();   // the curled-off end
+      for (let y = y0; y < y0 + len; y += 14) g.lineTo(x + sw + (Math.random() - .5) * 8, y);
+      g.lineTo(x + sw * .5, y0 + len + sw * .25);                                       // the tear narrows to where the flap hangs
+      for (let y = y0 + len; y > y0; y -= 14) g.lineTo(x + (Math.random() - .5) * 8, y);
+      g.closePath(); g.save(); g.clip();
+      g.fillStyle = "#cbbd9c"; g.fillRect(x - 12, 0, sw + 24, h);                       // bare plaster, lighter than the paper so it reads under the red light
+      const st = g.createLinearGradient(0, y0, 0, y0 + len); st.addColorStop(0, "rgba(60,15,5,.7)"); st.addColorStop(.6, "rgba(90,30,10,.25)"); st.addColorStop(1, "rgba(90,30,10,0)");
+      g.fillStyle = st; g.fillRect(x - 12, 0, sw + 24, h);
+      g.fillStyle = "rgba(0,0,0,.28)"; g.fillRect(x - 12, 0, 9, h);                     // shadow cast by the paper's torn edge
+      g.restore();
+      g.strokeStyle = "rgba(20,8,0,.6)"; g.lineWidth = 2; g.stroke();
+      const fy = y0 + len, fw = sw * 1.15;                                              // flap: paper curled forward, darker underside showing
+      g.fillStyle = "rgba(0,0,0,.3)"; g.beginPath(); g.ellipse(x + sw * .5 + 5, fy + fw * .5 + 6, fw * .55, fw * .5, 0, 0, 7); g.fill();
+      g.fillStyle = pal.base; g.beginPath(); g.moveTo(x - 2, fy - fw * .2); g.quadraticCurveTo(x + sw * .5, fy + fw * 1.1, x + sw + 2, fy - fw * .2); g.quadraticCurveTo(x + sw * .5, fy + fw * .35, x - 2, fy - fw * .2); g.fill();
+      g.fillStyle = pal.dk; g.fill(); g.strokeStyle = "rgba(20,8,0,.6)"; g.stroke();
     }
     const b = g.createLinearGradient(0, h * .85, 0, h); b.addColorStop(0, "rgba(60,45,5,0)"); b.addColorStop(1, "rgba(60,45,5,.35)");
     g.fillStyle = b; g.fillRect(0, h * .85, w, h * .15);              // grime near the floor
@@ -183,6 +192,89 @@ Object.assign(TEX, {
       g.fillStyle = "rgba(125,70,35,.5)"; g.fillRect(x + vw * .6, y + vh * .5, 10, vh * .3);
     });
   }),
+  // ---------- Level 0.5 · 淵閉療舍: 浸濡通道壁紙、腐朽木板、廢棄醫院與水磨石地磚 ----------
+  soakWall: () => {
+    const SOAKP = { base: "#ded4a6", dk: "rgba(130,120,50,.35)", lt: "rgba(245,240,190,.25)", dot: "rgba(120,110,40,.22)" };
+    const t = paper(512, 384, 8, false, SOAKP), g = t.image.getContext("2d"), w = 512, h = 384;
+    // water soaked dark grime creeping up 40% from bottom
+    const waterGrime = g.createLinearGradient(0, h * .55, 0, h);
+    waterGrime.addColorStop(0, "rgba(50,40,20,0)");
+    waterGrime.addColorStop(0.35, "rgba(50,40,20,.6)");
+    waterGrime.addColorStop(1, "rgba(25,18,8,.95)");
+    g.fillStyle = waterGrime; g.fillRect(0, h * .55, w, h * .45);
+    // water line stains and jagged peeling strips
+    for (let k = 0; k < 8; k++) {
+      const x = Math.random() * w * .85, y = h * (.5 + Math.random() * .2), sw = 30 + Math.random() * 50, len = 50 + Math.random() * 90;
+      g.fillStyle = "#3a2c18"; g.beginPath(); g.moveTo(x, y);
+      for (let yy = y; yy < y + len; yy += 12) g.lineTo(x + sw + (Math.random() - .5) * 12, yy);
+      for (let yy = y + len; yy > y; yy -= 12) g.lineTo(x + (Math.random() - .5) * 12, yy);
+      g.fill();
+    }
+    noise(g, w, 4000, .14); return t;
+  },
+  rottenWood: () => tex(256, (g, w) => {
+    g.fillStyle = "#4a3b2c"; g.fillRect(0, 0, w, w);
+    for (let y = 0; y < w; y += 32) {
+      g.fillStyle = y % 64 === 0 ? "#3b2e22" : "#554332"; g.fillRect(0, y, w, 30);
+      g.fillStyle = "rgba(0,0,0,.4)"; g.fillRect(0, y + 30, w, 2);
+    }
+    // worm-eaten hollow holes
+    for (let i = 0; i < 22; i++) {
+      const x = Math.random() * w, y = Math.random() * w, r = 3 + Math.random() * 7;
+      g.fillStyle = "#1c140d"; g.beginPath(); g.arc(x, y, r, 0, 7); g.fill();
+      g.strokeStyle = "rgba(255,255,255,.08)"; g.stroke();
+    }
+    noise(g, w, 5000, .18);
+  }),
+  hospWall: () => canvasTex(512, 384, (g, w, h) => {
+    // hospital wall: distressed beige plaster top, dusty mint green wainscot bottom (image 2)
+    g.fillStyle = "#dcd6c8"; g.fillRect(0, 0, w, h);
+    const splitY = h * .58;
+    g.fillStyle = "#7b9389"; g.fillRect(0, splitY, w, h - splitY);
+    g.fillStyle = "#51665e"; g.fillRect(0, splitY - 4, w, 8);
+    // stains, water seepage and peeling paint
+    for (let i = 0; i < 18; i++) {
+      const x = Math.random() * w, y = Math.random() * h, r = 10 + Math.random() * 35;
+      const gr = g.createRadialGradient(x, y, 2, x, y, r);
+      gr.addColorStop(0, "rgba(50,45,35,.3)"); gr.addColorStop(1, "rgba(50,45,35,0)");
+      g.fillStyle = gr; g.fillRect(x - r, y - r, 2 * r, 2 * r);
+    }
+    contactShade(g, w, h); noise(g, w, 6000, .12);
+  }),
+  hospTile: () => tex(256, (g, w) => {
+    g.fillStyle = "#b8b2a5"; g.fillRect(0, 0, w, w);
+    g.fillStyle = "#8c877d"; for (let k = 0; k <= 4; k++) { g.fillRect(k * w / 4 - 2, 0, 4, w); g.fillRect(0, k * w / 4 - 2, w, 4); }
+    // dirt specks and cracks
+    for (let i = 0; i < 35; i++) {
+      g.fillStyle = `rgba(${Math.random() < .5 ? "40,35,25" : "200,195,180"},.25)`;
+      g.fillRect(Math.random() * w, Math.random() * w, 2 + Math.random() * 4, 2 + Math.random() * 4);
+    }
+    noise(g, w, 6000, .16);
+  }),
+  murkyWater: () => tex(256, (g, w) => {
+    g.fillStyle = "#262016"; g.fillRect(0, 0, w, w);
+    // oily swirls
+    for (let i = 0; i < 14; i++) {
+      const x = Math.random() * w, y = Math.random() * w, r = 15 + Math.random() * 45;
+      const gr = g.createRadialGradient(x, y, 2, x, y, r);
+      gr.addColorStop(0, Math.random() < .5 ? "rgba(70,85,40,.35)" : "rgba(85,60,35,.35)");
+      gr.addColorStop(1, "rgba(0,0,0,0)");
+      g.fillStyle = gr; g.fillRect(x - r, y - r, 2 * r, 2 * r);
+    }
+    noise(g, w, 3000, .08);
+  }),
+  metalGrate: () => tex(128, (g, w) => {
+    g.fillStyle = "#33383d"; g.fillRect(0, 0, w, w);
+    g.fillStyle = "#14171a";
+    // perforated mesh holes (watchtower grate stairs, image 3)
+    for (let y = 4; y < w; y += 12) {
+      for (let x = (y % 24 === 4 ? 4 : 10); x < w; x += 12) {
+        g.fillRect(x - 2, y - 2, 5, 5);
+      }
+    }
+    g.strokeStyle = "#525a61"; g.lineWidth = 1.5;
+    g.strokeRect(1, 1, w - 2, w - 2);
+  }),
 });
 Object.assign(MAT, {
   iceWall: () => new THREE.MeshStandardMaterial({ map: getTex("iceWall"), roughness: .75 }),
@@ -196,6 +288,15 @@ Object.assign(MAT, {
   iceCore: () => new THREE.MeshStandardMaterial({ color: 0x4f86a8, roughness: .4 }),
   rust: () => flat(0x7a4a2a), hardHat: () => flat(0xf2c200),
   lampGreen: () => bright(0x40ff70, 2.2),
+  // Level 0.5 materials
+  soakWall: () => new THREE.MeshStandardMaterial({ map: getTex("soakWall"), roughness: .88 }),
+  rottenWood: () => new THREE.MeshStandardMaterial({ map: getTex("rottenWood"), roughness: .95 }),
+  hospWall: () => new THREE.MeshStandardMaterial({ map: getTex("hospWall"), roughness: .82 }),
+  hospTile: () => new THREE.MeshStandardMaterial({ map: getTex("hospTile"), roughness: .5 }),
+  murkyWater: () => new THREE.MeshStandardMaterial({ map: getTex("murkyWater"), color: 0x382d1c, roughness: .12, metalness: .18, transparent: true, opacity: .88 }),
+  metalGrate: () => new THREE.MeshStandardMaterial({ map: getTex("metalGrate"), roughness: .45, metalness: .75 }),
+  lampBlue: () => bright(0x38bdf8, 2.8),
+  drownedSlime: () => new THREE.MeshStandardMaterial({ color: 0x2e3b2f, roughness: .15, metalness: .1, transparent: true, opacity: .9 }),
 });
 
 const _texs = new Map(), _mats = new Map(), _geos = new Map();
@@ -243,6 +344,27 @@ const PROP_PARTS = {
   wifiRouter: [["routerBlack", 0, 0, 0, .26, .18, .04], ["routerBlack", -.1, .18, 0, .015, .2, .015], ["routerBlack", .1, .18, 0, .015, .2, .015],
     ["ledGreen", -.06, -.04, .025, .02, .02, .01], ["ledGreen", 0, -.04, .025, .02, .02, .01]],
   ceilingPanel: [["lampCool", 0, -.03, 0, 1.6, .05, .5]],      // add a PointLight under it for real light
+  // Level 0.5 props: hospital bed, snack cart, iv pole
+  hospBed: [
+    ...legParts("steel", .95, .45, .05, .75),
+    ["steel", 0, .85, -.45, 1.95, .6, .05],   // headboard
+    ["steel", 0, .65, .45, 1.95, .4, .05],    // footboard
+    ["armyMattress", 0, .45, 0, 1.9, .15, .88],
+    ["doorWhite", -.65, .55, 0, .45, .08, .6], // pillow
+  ],
+  snackCart: [
+    ...legParts("chrome", .4, .25, .03, .85),
+    ["chrome", 0, .8, 0, .9, .03, .6],         // top tray
+    ["chrome", 0, .3, 0, .9, .03, .6],         // bottom tray
+    ["crate", -.2, .88, 0, .25, .15, .2],      // snack box
+    ["crate", .1, .88, -.1, .2, .12, .25],
+    ["canTin", .25, .88, .12, .08, .12, .08, 0, "cyl"],
+  ],
+  ivPole: [
+    ["chrome", 0, .05, 0, .45, .04, .45],
+    ["chrome", 0, .95, 0, .03, 1.8, .03, 0, "cyl"],
+    ["jugBlue", 0, 1.65, .1, .1, .22, .08],    // IV drip bag
+  ],
 };
 function makeProp(name) {
   if (!PROP_PARTS[name]) throw new Error(`asset library: no prop "${name}"`);

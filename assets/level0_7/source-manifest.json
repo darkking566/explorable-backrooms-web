@@ -1,0 +1,118 @@
+{
+  "source": "https://backrooms-wiki-cn.wikidot.com/level-0-7",
+  "author": "T-Dragon",
+  "translators": [
+    "jiaoyanerlan2",
+    "KkKkK_1234",
+    "owl4513"
+  ],
+  "license": "CC BY-SA 3.0",
+  "pages": [
+    {
+      "id": "discovery",
+      "title": "M.E.G.：發現前哨站",
+      "url": "https://backrooms-wiki-cn.wikidot.com/level-0-7",
+      "sha256": "836c52243dfc01712aecd490ea69c0bd8d13e26698da0c410a0dedc5908d2837",
+      "textLength": 35831,
+      "file": "archive/discovery.html"
+    },
+    {
+      "id": "records",
+      "title": "N.T.G.：1972／1981 年完整檔案",
+      "url": "https://backrooms-wiki-cn.wikidot.com/level-0-7/offset/1",
+      "sha256": "26686bd96c236b7ed7a11457516adf3782173e0adc78b4224bcc222579221419",
+      "textLength": 29520,
+      "file": "archive/records.html"
+    },
+    {
+      "id": "era-0",
+      "title": "現代區",
+      "file": "archive/era-0.html"
+    },
+    {
+      "id": "era-1",
+      "title": "早期電氣區",
+      "file": "archive/era-1.html"
+    },
+    {
+      "id": "era-2",
+      "title": "華麗高廳區",
+      "file": "archive/era-2.html"
+    },
+    {
+      "id": "era-3",
+      "title": "中世紀區",
+      "file": "archive/era-3.html"
+    },
+    {
+      "id": "era-4",
+      "title": "羅馬區",
+      "file": "archive/era-4.html"
+    },
+    {
+      "id": "era-5",
+      "title": "埃及區",
+      "file": "archive/era-5.html"
+    },
+    {
+      "id": "era-6",
+      "title": "前人類時代理論",
+      "file": "archive/era-6.html"
+    },
+    {
+      "id": "verified",
+      "title": "M.E.G.：調查結尾",
+      "url": "https://backrooms-wiki-cn.wikidot.com/level-0-7/offset/2",
+      "sha256": "77b7be984e9fbab6feb412c128bdbf9965aa8d78d050f6a7d9b7854cbfc6ca45",
+      "textLength": 34069,
+      "file": "archive/verified.html"
+    }
+  ],
+  "images": [
+    {
+      "alt": "NTGabandoned",
+      "source": "https://backrooms-wiki.wdfiles.com/local--files/fragment:level-0-7-0/NTGabandoned",
+      "file": "images/1.jpg"
+    },
+    {
+      "alt": "backrooms1930",
+      "source": "https://backrooms-wiki.wdfiles.com/local--files/fragment:level-0-7-1/backrooms1930",
+      "file": "images/2.jpg"
+    },
+    {
+      "alt": "cc_lvl0.jpg",
+      "source": "https://backrooms-wiki.wdfiles.com/local--files/fragment:level-0-7-1/cc_lvl0.jpg",
+      "file": "images/3.jpg"
+    },
+    {
+      "alt": "backrooms1925",
+      "source": "https://backrooms-wiki.wdfiles.com/local--files/fragment:level-0-7-1/backrooms1925",
+      "file": "images/4.jpg"
+    },
+    {
+      "alt": "VICKYROOMS",
+      "source": "https://backrooms-wiki.wdfiles.com/local--files/fragment:level-0-7-1/VICKYROOMS",
+      "file": "images/5.jpg"
+    },
+    {
+      "alt": "backroomscastle2",
+      "source": "https://backrooms-wiki.wdfiles.com/local--files/fragment:level-0-7-1/backroomscastle2",
+      "file": "images/6.jpg"
+    },
+    {
+      "alt": "romanhalls",
+      "source": "https://backrooms-wiki.wdfiles.com/local--files/fragment:level-0-7-1/romanhalls",
+      "file": "images/7.jpg"
+    },
+    {
+      "alt": "48005060003_a84096c269_c.jpg",
+      "source": "https://backrooms-wiki.wdfiles.com/local--files/fragment:level-0-7-1/48005060003_a84096c269_c.jpg",
+      "file": "images/8.jpg"
+    },
+    {
+      "alt": "GrowlerOld.jpg",
+      "source": "https://backrooms-wiki.wdfiles.com/local--files/fragment:level-0-7-1/GrowlerOld.jpg",
+      "file": "images/9.jpg"
+    }
+  ]
+}

@@ -38,7 +38,7 @@
   .mp-peg svg{width:24px;height:32px}
   #pegGhost{display:none;position:fixed;left:0;top:0;pointer-events:none;z-index:7;filter:drop-shadow(0 3px 3px rgba(0,0,0,.4))}
   #pegGhost svg{width:30px;height:40px;display:block}
-  .mp-levels{position:absolute;left:12px;top:68px;display:flex;overflow:hidden}
+  .mp-levels{position:absolute;left:12px;top:68px;display:flex;overflow:auto;max-width:calc(100vw - 24px)}
   .mp-levels button{box-shadow:none!important;border-radius:0!important;padding:0 12px;font-weight:600;font-size:13px}
   .mp-levels button+button{border-left:1px solid #e0e0e0!important}
   #map .mp-levels button.on{background:#e8f0fe;color:#1a73e8}
@@ -47,6 +47,15 @@
   .mp-decks button+button{border-top:1px solid #e0e0e0!important}
   #map .mp-decks button.on{background:#e8f0fe;color:#1a73e8}
   .mp-hint{position:absolute;left:12px;bottom:24px;max-width:min(340px,calc(100vw - 90px));padding:10px 14px;font-size:12.5px}
+  #memoryReader[hidden]{display:none}
+  #memoryReader{position:fixed;inset:0;z-index:24;display:grid;place-items:center;background:rgba(8,8,5,.88);padding:clamp(8px,3vw,36px);box-sizing:border-box;color:#e4d8b2;font-family:'Segoe UI','Noto Sans TC',sans-serif}
+  .mr-shell{width:min(1180px,100%);height:min(820px,94vh);display:flex;flex-direction:column;border:1px solid #6c6040;background:#211e15;box-shadow:0 25px 90px #000}
+  .mr-shell header{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:16px 22px;border-bottom:1px solid #5b5035}
+  .mr-shell small{display:block;font:11px monospace;letter-spacing:2px;color:#a7976a;margin-bottom:5px}.mr-shell strong{font-size:19px;font-weight:500}
+  .mr-shell button{cursor:pointer;font:13px/1.5 inherit;color:#e4d8b2;border:1px solid #66593c;background:#332e20;padding:10px 12px}.mr-shell button:focus-visible{outline:2px solid #dfc77e;outline-offset:2px}
+  .mr-content{display:grid;grid-template-columns:235px 1fr;flex:1;min-height:0}.mr-content nav{overflow:auto;padding:12px;display:flex;flex-direction:column;gap:6px;border-right:1px solid #5b5035}.mr-content nav button{text-align:left;font:13px/1.6 'Segoe UI',sans-serif;position:relative}.mr-content nav button.read::after{content:' •';color:#bca56b}.mr-content nav button.selected{border-color:#c6ac67;background:#4a4027;color:#fff1c4}.mr-content iframe{width:100%;height:100%;border:0;background:#f2eddd;min-width:0}.mr-shell footer{font:11px/1.5 'Segoe UI',sans-serif;color:#a99c76;padding:9px 20px;border-top:1px solid #5b5035}
+  .mr-shell button:disabled{opacity:.45;cursor:default}.mr-shell header button{font:13px/1.5 'Segoe UI',sans-serif}
+  @media(max-width:700px){.mr-content{grid-template-columns:1fr;grid-template-rows:110px 1fr}.mr-content nav{border-right:0;border-bottom:1px solid #5b5035;display:grid;grid-template-columns:repeat(3,minmax(120px,1fr));overflow:auto}.mr-shell header{padding:10px}.mr-shell footer{padding:6px 10px}}
 </style>
 </head>
 <body>
@@ -75,7 +84,7 @@
     <div class="mp-card mp-zoom"><button id="mapIn" aria-label="放大">＋</button><button id="mapOut" aria-label="縮小">－</button></div>
   </div>
   <div class="mp-card mp-hint">左鍵拖曳：平移 · 右鍵拖曳：旋轉 / 傾斜 · 滾輪：縮放<br>把右下角的<b>小人</b>拖到地圖上（綠色可降落）· 左上切換關卡，天頂站可再切換甲板 · M / Esc 返回</div>
-  <div class="mp-card mp-levels" id="mapLevels" aria-label="關卡"><button data-m="map" title="後室 Level 0">Level 0</button><button data-m="station" title="天頂站">Level 0.1</button><button data-m="remodel" title="重塑的混亂">Level 0.2</button><button data-m="ice" title="冰室">Level 0.3</button><button data-m="base" title="Alpha 基地">Level 1</button></div>
+  <div class="mp-card mp-levels" id="mapLevels" aria-label="關卡"><button data-m="map" title="後室 Level 0">Level 0</button><button data-m="station" title="天頂站">Level 0.1</button><button data-m="remodel" title="重塑的混亂">Level 0.2</button><button data-m="ice" title="冰室">Level 0.3</button><button data-m="infirmary" title="淵閉療舍">Level 0.5</button><button data-m="base" title="Alpha 基地">Level 1</button></div>
   <div class="mp-card mp-decks" id="mapDecks" aria-label="甲板"></div>
   <div id="pegGhost"></div>
 </div>
@@ -144,7 +153,9 @@ Object.assign(window, { THREE, OrbitControls, Reflector, EffectComposer, RenderP
 <script defer src="levels/level1.js"></script>
 <script defer src="levels/level0_2.js"></script>
 <script defer src="levels/level0_3.js"></script>
+<script defer src="levels/level0_5.js"></script>
 <script defer src="levels/level0_1.js"></script>
+<script defer src="levels/level0_7.js"></script>
 <script defer src="js/game.js"></script>
 </body>
 </html>
