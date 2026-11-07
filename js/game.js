@@ -47,15 +47,51 @@ function say(text, ms = 4000) {
 
 // ---------- audio: fluctuating fluorescent hum, whispers, scratching behind walls ----------
 let actx, humGain, noiseBuf, exitGain, exitPan, bus, farBus, exitF, breathGain;
+let verbIn, verbTone, verbWet, verbNow = null, verbKey = "", toneF, toneGain;
+// how each place sounds: reverb length (s), how bright the echo is (Hz), how much of it; the floor underfoot;
+// the room tone that never stops (band-pass noise: Hz, Q, volume, slow wobble); and what is heard rooms away
+const ROOMS = {
+  map:       { grade: [1, 1, 1, 1], verb: 1.8, tone: 4200, wet: .32, floor: "carpet", room: [120, .7, .012, .2], ev: ["whisper", "scratch", "farSteps", "farSlam"], evT: 1 },
+  hall:      { grade: [1, 1, 1, 1], verb: 2.6, tone: 3600, wet: .38, floor: "carpet", room: [120, .7, .014, .2], ev: ["whisper", "scratch", "farSteps", "farSlam"], evT: 1 },
+  atrium:    { grade: [.98, .98, 1, .95], verb: 4.2, tone: 2600, wet: .5, floor: "carpet", room: [70, .6, .022, .4], ev: ["farSteps", "farSlam", "whisper"], evT: 1 },
+  dark:      { grade: [.94, .96, 1.02, .8], verb: 1.2, tone: 2200, wet: .28, floor: "water", room: [90, .8, .01, .3], ev: ["whisper", "scratch", "drip"], evT: .8 },
+  station:   { grade: [.97, 1, 1.04, .85], verb: 3.4, tone: 3000, wet: .42, floor: "metal", room: [55, .5, .03, .25], ev: ["train", "chime", "farSlam", "farSteps"], evT: 1.2 },
+  remodel:   { grade: [1, 1, .99, .9], verb: 1.1, tone: 6000, wet: .24, floor: "tile", room: [240, .8, .008, .1], ev: ["farSteps", "rattle", "farSlam"], evT: 1.3 },
+  ice:       { grade: [.92, .98, 1.08, .78], verb: 2.4, tone: 7000, wet: .4, floor: "ice", room: [520, .5, .02, .6], ev: ["crack", "rattle", "gust"], evT: 1 },
+  infirmary: { grade: [.95, 1.03, .96, .8], verb: 1.6, tone: 2800, wet: .36, floor: "tile", room: [50, 1.2, .02, .15], ev: ["drip", "knock", "farSteps", "whisper"], evT: .9 },
+  memory:    { grade: [1.03, 1, .95, .9], verb: 2.0, tone: 3400, wet: .3, floor: "carpet", room: [150, .7, .006, .2], ev: ["farSteps", "drip"], evT: 2.2 },
+  base:      { grade: [1, 1, 1, 1], verb: 3.0, tone: 3200, wet: .36, floor: "concrete", room: null, ev: null },   // Level 1 runs its own sounds
+};
+const roomOf = zt => mode !== "map" ? ROOMS[mode] ? mode : "map" : zt === ATRIUM ? "atrium" : zt === PIL ? "hall" : zt === DARK ? "dark" : "map";
+const irCache = {};
+function makeIR(sec) {                       // decaying stereo noise; a longer tail is a bigger room
+  if (irCache[sec]) return irCache[sec];
+  const ir = actx.createBuffer(2, Math.floor(actx.sampleRate * sec), actx.sampleRate);
+  for (let c = 0; c < 2; c++) { const d = ir.getChannelData(c); for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 3.5); }
+  return irCache[sec] = ir;
+}
+// a convolver's buffer can be set only once, so a new room gets a new convolver, crossfaded in over a second
+function setRoom(key) {
+  if (!actx || key === verbKey) return; verbKey = key; const R = ROOMS[key], t0 = actx.currentTime;
+  const v = actx.createConvolver(), g = actx.createGain(); v.buffer = makeIR(R.verb); g.gain.value = 0;
+  verbIn.connect(v); v.connect(g); g.connect(verbTone); g.gain.setTargetAtTime(1, t0, .35);
+  if (verbNow) { const o = verbNow; o.g.gain.setTargetAtTime(0, t0, .35); setTimeout(() => { o.v.disconnect(); o.g.disconnect(); }, 2500); }
+  verbNow = { v, g };
+  verbTone.frequency.setTargetAtTime(R.tone, t0, .4); verbWet.gain.setTargetAtTime(R.wet, t0, .4);
+  const r = R.room || [100, 1, 0, 0]; toneF.frequency.setTargetAtTime(r[0], t0, .5); toneF.Q.setTargetAtTime(r[1], t0, .5);
+}
 function startAudio() {
   if (actx) return; actx = new AudioContext();
-  // every sound goes through one bus with a short room reverb: a generated decaying-noise impulse, so no audio files
+  // every sound goes through one bus with a room reverb: generated decaying-noise impulses, so no audio files
   bus = actx.createGain(); bus.connect(actx.destination);
-  const verb = actx.createConvolver(), wet = actx.createGain(), ir = actx.createBuffer(2, actx.sampleRate * 1.8, actx.sampleRate);
-  for (let c = 0; c < 2; c++) { const d = ir.getChannelData(c); for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 3.5); }
-  verb.buffer = ir; wet.gain.value = .32; bus.connect(verb); verb.connect(wet); wet.connect(actx.destination);
+  verbIn = actx.createGain(); verbTone = actx.createBiquadFilter(); verbTone.type = "lowpass"; verbWet = actx.createGain();
+  verbTone.connect(verbWet); verbWet.connect(actx.destination); bus.connect(verbIn);
+  const verb = verbIn;
   // far-off sounds: mostly reverb, a little dry, so they seem to come from rooms away
   farBus = actx.createGain(); const farDry = actx.createGain(); farDry.gain.value = .25; farBus.connect(farDry); farDry.connect(actx.destination); farBus.connect(verb);
+  // room tone: no real place is ever silent; ventilation, pipes, wind
+  const rt = actx.createBufferSource(); toneF = actx.createBiquadFilter(); toneF.type = "bandpass"; toneGain = actx.createGain(); toneGain.gain.value = 0;
+  rt.loop = true; rt.connect(toneF); toneF.connect(toneGain); toneGain.connect(bus);
   const out = actx.createGain(); out.gain.value = .12; out.connect(bus); humGain = out;
   [60, 120, 180, 240].forEach((f, n) => {
     const o = actx.createOscillator(), g = actx.createGain();
@@ -63,6 +99,7 @@ function startAudio() {
   });
   noiseBuf = actx.createBuffer(1, actx.sampleRate * 2, actx.sampleRate);
   const d = noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+  rt.buffer = noiseBuf; rt.start(); setRoom(roomOf(prevT));
   const n = actx.createBufferSource(); n.buffer = noiseBuf; n.loop = true;
   const f = actx.createBiquadFilter(); f.type = "bandpass"; f.frequency.value = 3500; f.Q.value = 3;
   const g = actx.createGain(); g.gain.value = .05; n.connect(f); f.connect(g); g.connect(out); n.start();
@@ -73,16 +110,37 @@ function startAudio() {
   const bs = actx.createBufferSource(), bf = actx.createBiquadFilter(); bs.buffer = noiseBuf; bs.loop = true; bf.type = "bandpass"; bf.frequency.value = 1000; bf.Q.value = .6;
   breathGain = actx.createGain(); breathGain.gain.value = 0; bs.connect(bf); bf.connect(breathGain); breathGain.connect(bus); bs.start();
 }
-function footstep(wet) {
+// footing: heel thump (Hz, volume), scuff (Hz, Q, volume, length), and how the gait changes (step rate, bob size)
+const FLOORS = {
+  carpet:   { thump: [65, .2], scuff: [600, .8, .08, .09], rate: 1, bob: 1 },
+  water:    { thump: [55, .16], scuff: [420, 1.2, .2, .2], rate: .85, bob: .8 },
+  tile:     { thump: [85, .22], scuff: [2200, 1.5, .12, .06], rate: 1, bob: 1 },
+  metal:    { thump: [110, .2], scuff: [1700, 2, .1, .05], ring: 640, rate: 1, bob: 1 },
+  concrete: { thump: [75, .22], scuff: [1500, 1.2, .1, .07], rate: 1, bob: 1 },
+  ice:      { thump: [90, .14], scuff: [3600, 1, .07, .04], crunch: true, rate: .8, bob: .7 },
+};
+let floorNow = FLOORS.carpet;
+function footstep(f) {
   if (!actx) return;
-  const o = actx.createOscillator(), g = actx.createGain(), t0 = actx.currentTime;
-  o.frequency.value = 60 + Math.random() * 25; g.gain.setValueAtTime(.18 + Math.random() * .08, t0);
+  const o = actx.createOscillator(), g = actx.createGain(), t0 = actx.currentTime, v = .8 + Math.random() * .4;
+  o.frequency.value = f.thump[0] * (.85 + Math.random() * .3); g.gain.setValueAtTime(f.thump[1] * v, t0);
   g.gain.exponentialRampToValueAtTime(.001, t0 + .12);
   o.connect(g); g.connect(bus); o.start(); o.stop(t0 + .13);
-  // the scuff: muffled on carpet, brighter on the hard floors of the other levels
-  const hard = mode === "station" || mode === "ice" || mode === "infirmary" || mode === "remodel";
-  noiseBurst(hard ? 1800 + Math.random() * 900 : 500 + Math.random() * 300, hard ? 1.5 : .8, hard ? .12 : .09, 1, .07 + Math.random() * .04, 0, 0);
-  if (wet) noiseBurst(420, 1.2, .22, 1, .2, .2);   // splash through the liquid
+  const [sf, sq, sv, sl] = f.scuff;
+  noiseBurst(sf * (.8 + Math.random() * .4), sq, sv * v, 1, sl * (.8 + Math.random() * .5), 0, 0);
+  if (f.crunch) noiseBurst(2400 + Math.random() * 1500, 2, .05 * v, 3, .025, .03, 0);   // ice crust giving way
+  if (f.ring) {                              // a metal deck rings faintly under the heel
+    const r = actx.createOscillator(), rg = actx.createGain(); r.frequency.value = f.ring * (.95 + Math.random() * .1);
+    rg.gain.setValueAtTime(.025 * v, t0); rg.gain.exponentialRampToValueAtTime(.0005, t0 + .35); r.connect(rg); rg.connect(bus); r.start(); r.stop(t0 + .36);
+  }
+}
+// rooms-away sounds for the other levels
+function tone(f0, f1, vol, len, dest = bus, side = Math.random() * 2 - 1) {
+  if (!actx) return;
+  const o = actx.createOscillator(), g = actx.createGain(), pan = actx.createStereoPanner(), t0 = actx.currentTime; pan.pan.value = side;
+  o.frequency.setValueAtTime(f0, t0); o.frequency.exponentialRampToValueAtTime(f1, t0 + len);
+  g.gain.setValueAtTime(0, t0); g.gain.linearRampToValueAtTime(vol, t0 + .01); g.gain.exponentialRampToValueAtTime(.0005, t0 + len);
+  o.connect(g); g.connect(pan); pan.connect(dest); o.start(t0); o.stop(t0 + len + .02);
 }
 // pulses of band-passed noise from a random side: freq/Q set the character, pulses x gap the rhythm
 function noiseBurst(freq, q, vol, pulses, len, gap, side = Math.random() * 2 - 1, dest = bus) {
@@ -100,6 +158,21 @@ const scratch = () => noiseBurst(2600, 2, .16, 3 + Math.floor(Math.random() * 3)
 // rooms away: a door slamming, or someone else's footsteps passing and fading; low, dull, and mostly echo
 const farSlam = () => noiseBurst(160 + Math.random() * 80, .9, .5, 1, .18, 0, Math.random() * 2 - 1, farBus);
 const farSteps = () => noiseBurst(220, 1.2, .22, 5 + Math.floor(Math.random() * 6), .08, .48 + Math.random() * .15, Math.random() * 2 - 1, farBus);
+// what each level's far-off events sound like; the startle number is how hard a loud one makes you flinch
+const EVENTS = {
+  whisper, scratch, farSteps,
+  farSlam: () => { farSlam(); startle(.5); },
+  drip: () => { const n = 1 + Math.floor(Math.random() * 3), s = Math.random() * 2 - 1; for (let k = 0; k < n; k++) setTimeout(() => tone(1500 + Math.random() * 500, 600, .05, .09, bus, s), k * (300 + Math.random() * 500)); },
+  knock: () => { noiseBurst(140, 2, .3, 3 + Math.floor(Math.random() * 3), .07, .22, Math.random() * 2 - 1, farBus); startle(.35); },   // pipes knocking
+  train: () => noiseBurst(70 + Math.random() * 30, .6, .35, 1, 7, 0, Math.random() * 2 - 1, farBus),                                  // a train passing decks away
+  chime: () => { const s = Math.random() * 2 - 1; tone(660, 655, .07, 1.4, farBus, s); setTimeout(() => tone(523, 520, .07, 1.8, farBus, s), 450); },   // a PA chime, nobody speaks after it
+  rattle: () => noiseBurst(900 + Math.random() * 400, 5, .07, 6 + Math.floor(Math.random() * 6), .05, .08, Math.random() * 2 - 1, farBus),   // a vent cover shaking
+  crack: () => { noiseBurst(3200, .9, .3, 2, .04, .06); noiseBurst(400, 1, .12, 1, .5, 0, 0, farBus); startle(.45); },               // ice splitting somewhere near
+  gust: () => noiseBurst(450 + Math.random() * 200, .5, .12, 1, 3.5, 0, Math.random() * 2 - 1, farBus),
+};
+// a sudden noise: the head flinches, the eyes widen, and a loud enough one sets the heart going for a few beats
+let shake = 0, scareBeats = 0, scareBeatT = 0, dipY = 0, dipV = 0;
+function startle(k) { shake = Math.max(shake, k); dipV -= .25 * k; if (k >= .45) { scareBeats = 3; scareBeatT = .3; } expo = Math.min(1.5, expo + .12 * k); }
 // solid walls crossed on the straight line between two points in Level 0, for muffling sounds behind them
 function wallsBetween(x0, z0, x1, z1) {
   const m = (v, M) => ((v % M) + M) % M, steps = Math.ceil(Math.hypot(x1 - x0, z1 - z0) / .5);
@@ -154,12 +227,12 @@ const TELL = {
   [ATRIUM]: "挑高中庭。腳下是看不見底的垂直空間，一層層樓板懸在黑暗裡。",
 };
 function respawn(text, wait) {
-  state = "wait"; fadeEl.innerHTML = text; fadeEl.style.opacity = 1;
+  state = "wait"; fadeEl.innerHTML = text; fadeEl.style.opacity = 1; glitch = 1.4;
   setTimeout(() => { if (mode === "station") tsLevel = TS_START; const home = mode === "station" ? TS_HOME : pickSpawn(); P.x = home[0]; P.z = home[1]; if (mode !== "station") P.yaw = Math.random() * Math.PI * 2; P.y = mode === "station" ? tsLevel * TS_FH : 0; dropY = 0; fallV = 0; fadeEl.style.opacity = 0; state = "play"; }, wait);
 }
 function ending() {
   const ts = exitKind === "ts", r02 = exitKind === "r02", ice = exitKind === "ice", sub05 = exitKind === "sub05";
-  state = "wait";
+  state = "wait"; glitch = 1.6;
   fadeEl.innerHTML = ts
     ? "金屬滑門無聲地打開，你走了進去……<br><b>LEVEL 0.1 · 天頂站</b>"
     : r02
@@ -352,9 +425,15 @@ function mapFrame() {
 const clock = new THREE.Clock(), hud = document.getElementById("hud");
 let bob = 0, lastStep = 0;
 let runK = 0, roll = 0, camYaw = P.yaw, camPitch = P.pitch, expo = 1, runNow = false, strafe = 0, dipT = 0, exert = 0, breathPh = 0, vhs = false;
+let velX = 0, velZ = 0, bumpT = 0, moveK = 0, lastFloorY = 0, glitch = 0, lastMode = mode;
+const _tint = new THREE.Vector3();
+let hudShow = 5; hud.style.transition = "opacity 1.5s";
+addEventListener("keydown", e => { if (e.code === "Tab" && document.pointerLockElement === renderer.domElement) e.preventDefault(); });   // in play Tab shows the status line; in menus it still moves focus
+// the tape counter only runs while recording, and is kept between sessions: it is the same tape every time
+let tapeSec = 0; try { tapeSec = +localStorage.getItem("bk-tape") || 0; } catch {}
+let tapeSaved = 0;
 // C: camcorder look, with a REC stamp in the corner
 const recEl = document.createElement("div"); recEl.style.cssText = "position:fixed;top:14px;left:16px;font:15px monospace;color:#fff;text-shadow:0 0 3px #000;z-index:1;pointer-events:none;display:none"; document.body.appendChild(recEl);
-const recStart = Date.now();
 addEventListener("keydown", e => { if (e.code === "KeyC" && !e.repeat && !docOpen && !mapOpen && e.target.tagName !== "INPUT") { vhs = !vhs; recEl.style.display = vhs ? "block" : "none"; } });
 // dust drifting in the light: a box of points that wraps around the camera, so it is everywhere without being many
 const DUST = 260, DB = 10, dustPos = new Float32Array(DUST * 3).map(() => Math.random() * DB);
@@ -391,10 +470,18 @@ renderer.setAnimationLoop(() => {
     const fx = (keys.KeyW || keys.ArrowUp ? 1 : 0) - (keys.KeyS || keys.ArrowDown ? 1 : 0);
     const sx = (keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0);
     const len = Math.hypot(fx, sx) || 1, s = Math.sin(P.yaw), c = Math.cos(P.yaw);
-    const vx = (-s * fx + c * sx) / len * sp * dt, vz = (-c * fx - s * sx) / len * sp * dt;
+    // a body has weight: speed builds up and runs out over a few frames (longer on ice) instead of jumping
+    const acc = Math.min(1, dt * (floorNow === FLOORS.ice ? 3.5 : 11));
+    velX += ((-s * fx + c * sx) / len * sp - velX) * acc; velZ += ((-c * fx - s * sx) / len * sp - velZ) * acc;
+    const vx = velX * dt, vz = velZ * dt, x0 = P.x, z0 = P.z;
     // small steps so fast movement never tunnels through a wall
     const steps = Math.ceil(Math.hypot(vx, vz) / .1) || 1;
     for (let i = 0; i < steps; i++) { P.x += vx / steps; P.z += vz / steps; collide(); }
+    // what the walls let through is the real speed; walking straight into one stops you, with a small knock of the head
+    const want = Math.hypot(vx, vz), got = Math.hypot(P.x - x0, P.z - z0);
+    if (want > 1e-4) { velX *= Math.min(1, got / want + .05); velZ *= Math.min(1, got / want + .05); }
+    if (want > 2.4 * dt && got < want * .3 && t - bumpT > .7) { bumpT = t; dipV -= .5; shake = Math.max(shake, .25); noiseBurst(110, 1, .12, 1, .08, 0, 0); }
+    moveK = sp > 0 ? Math.min(1.2, got / dt / 2.8) : 0;
     if (mode === "map") {                    // the outer doorways wrap around: leave on one side, arrive on the other
       if (Memory07.gate()) Memory07.enter({ walk: true });
       if (mode === "map") {
@@ -402,8 +489,10 @@ renderer.setAnimationLoop(() => {
         if (P.z < 0) P.z += DS; else if (P.z > DS) P.z -= DS;
       }
     }
-    runNow = run && !!(fx || sx); strafe = sx;
-    if (fx || sx) { bob += dt * (run ? 12 : 8); if (Math.sin(bob) < -.95 && t - lastStep > .25) { footstep((mode === "map" && P.y < -.1) || (mode === "infirmary" && P.x < H_WATER_X)); lastStep = t; } }
+    runNow = run && !!(fx || sx) && moveK > .5; strafe = sx;
+    const wet = (mode === "map" && P.y < -.1) || (mode === "infirmary" && P.x < H_WATER_X);
+    floorNow = wet ? FLOORS.water : FLOORS[ROOMS[roomOf(zt)].floor];
+    if (moveK > .15) { bob += dt * (run ? 12 : 8) * floorNow.rate * Math.min(1, moveK); if (Math.sin(bob) < -.95 && t - lastStep > .25) { footstep(floorNow); lastStep = t; } }
     if (mode === "ice") iceInteract.onTick(dt, t);
     if (mode === "infirmary") infirmaryInteract.onTick(dt, t);
     if (mode === "remodel") {
@@ -430,7 +519,7 @@ renderer.setAnimationLoop(() => {
       if (!exitEdge) { exitT -= dt; exitTick -= dt; if (exitT <= 0 && exitTick <= 0) { exitTick = .5; if (spawnExit()) { exitLife = 70; if (exitKind !== "ts") say("遠處傳來電流般的嗡嗡聲……", 4500); } } }
       else if ((exitLife -= dt) <= 0) { clearExit(); exitT = 30 + Math.random() * 50; }
     } else if (mode === "station") tsTick(dt);
-  }
+  } else velX = velZ = moveK = 0;   // paused, falling or between levels: no momentum carried over
   if (mode === "memory") Memory07.tick(dt, t);
   if (state === "fall") fall(dt);
   P.y += (floorH(P.x, P.z) - P.y) * Math.min(1, dt * 14);
@@ -442,11 +531,14 @@ renderer.setAnimationLoop(() => {
   redv.style.opacity = redK * (.8 + .2 * Math.sin(t * 6));
   // ambient events: whispers, scratching behind walls, hum surging
   if (actx && live) {
-    if (mode !== "memory" && mode !== "base" && mode !== "remodel" && mode !== "ice" && mode !== "infirmary") { eventT -= dt; if (eventT <= 0) { eventT = (14 + Math.random() * 25) * (1 - .55 * anom); const r = Math.random(); r < .35 ? whisper() : r < .65 ? scratch() : r < .85 ? farSteps() : farSlam(); } }
+    const R = ROOMS[roomOf(zt)]; setRoom(roomOf(zt));
+    if (R.ev) { eventT -= dt; if (eventT <= 0) { eventT = (14 + Math.random() * 25) * R.evT * (mode === "map" ? 1 - .55 * anom : 1); EVENTS[R.ev[Math.floor(Math.random() ** 1.4 * R.ev.length)]](); } }   // the first in each list is the commonest
+    const rm = R.room; toneGain.gain.value = rm ? rm[2] * (1 + rm[3] * Math.sin(t * .23) * Math.sin(t * .37 + 2)) : 0;
     humT -= dt; if (humT <= 0) { humT = 2 + Math.random() * 6; humLevel = Math.random() < .12 ? 2.8 : .7 + Math.random() * .7; if (humLevel > 2) dipT = .12 + Math.random() * .15; }   // rare ear-splitting surge
     zoneHum += ((mode === "memory" ? (Memory07.eraAt(P.x) === 0 ? .5 : .08) : zt === DARK ? 0 : mode === "base" ? .12 : mode === "ice" ? .2 : mode === "infirmary" ? .1 : (mode === "station" || mode === "remodel") ? 0 : 1) - zoneHum) * Math.min(1, dt * 3);                                // 熄燈區: hum goes silent
     humGain.gain.value = .12 * humLevel * zoneHum;
     if (redK > .3) { beatT -= dt; if (beatT <= 0) { heartbeat(); beatT = .95 - .45 * redK; } }
+    else if (scareBeats > 0 && (scareBeatT -= dt) <= 0) { heartbeat(); scareBeats--; scareBeatT = .55; }
     const ex = exitEdge ? exitEdge.x - P.x : 0, ez = exitEdge ? exitEdge.z - P.z : 0, ed = Math.hypot(ex, ez) || 1;
     const walls = exitEdge && mode === "map" ? wallsBetween(P.x, P.z, exitEdge.x, exitEdge.z) : 0;   // behind walls the buzz goes dull and quiet
     exitF.frequency.value = 600 / (1 + 1.5 * walls);
@@ -464,14 +556,19 @@ renderer.setAnimationLoop(() => {
     if (figSeen > 1.2 || d < 7) { fig.visible = false; figT = (40 + Math.random() * 60) * (1 - .6 * anom); }
   }
   // a head, not a tripod: side-to-side sway at half the step rate, a slight lean into strafes, and the view trailing the mouse by a few ms
-  const sway = Math.cos(bob * .5) * (.025 + .02 * runK);
-  camera.position.set(P.x + Math.cos(P.yaw) * sway, P.y + 1.65 + dropY + Math.sin(bob) * (.04 + .02 * runK), P.z - Math.sin(P.yaw) * sway);
+  // the knees take a step up or a drop: the head dips and springs back (a big jump is a teleport, not a step)
+  const fy = P.y - lastFloorY; lastFloorY = P.y; if (Math.abs(fy) > .03 && Math.abs(fy) < .6) dipV -= Math.abs(fy) * 3;
+  dipV += (-60 * dipY - 11 * dipV) * dt; dipY += dipV * dt; dipY = Math.max(-.12, Math.min(.06, dipY));
+  const tired = .6 + .4 * exert, gb = floorNow.bob * Math.min(1, moveK);   // winded: the head swings more
+  const sway = Math.cos(bob * .5) * (.025 + .02 * runK) * tired * gb;
+  camera.position.set(P.x + Math.cos(P.yaw) * sway, P.y + 1.65 + dropY + dipY + Math.sin(bob) * (.04 + .02 * runK) * gb, P.z - Math.sin(P.yaw) * sway);
   roll += (-strafe * .025 - sway * .15 - roll) * Math.min(1, dt * 6);
   const lag = Math.min(1, dt * 28);
   const turnX = camYaw, turnY = camPitch;
   if (Math.abs(P.yaw - camYaw) > 1) camYaw = P.yaw; else camYaw += (P.yaw - camYaw) * lag;   // a teleport or respawn snaps instead of swinging
   camPitch += (P.pitch - camPitch) * lag;
-  camera.rotation.set(camPitch, camYaw, roll, "YXZ");
+  shake = Math.max(0, shake - dt * 1.6); const sh = shake * shake * .03;   // a flinch: a quick jitter that dies out
+  camera.rotation.set(camPitch + (Math.random() - .5) * sh, camYaw + (Math.random() - .5) * sh, roll + (Math.random() - .5) * sh * .5, "YXZ");
   dustTick(dt, t);
   // a fast turn smears the frame sideways (yaw) or vertically (pitch), like a shutter that's a bit too slow
   grade.uniforms.uMotion.value.set(THREE.MathUtils.clamp((camYaw - turnX) * .35, -.012, .012), THREE.MathUtils.clamp((turnY - camPitch) * .35, -.012, .012));
@@ -481,13 +578,28 @@ renderer.setAnimationLoop(() => {
   breathPh += dt * (1.4 + 2.5 * exert);
   if (breathGain) { const sn = Math.sin(breathPh); breathGain.gain.value = live ? exert * (.07 * Math.max(0, sn) ** 2 + .035 * Math.max(0, -sn) ** 2) : 0; }
   grade.uniforms.uVHS.value = vhs ? 1 : 0;
-  if (vhs) { const s = Math.floor((Date.now() - recStart) / 1000), p2 = n => String(n).padStart(2, "0"); recEl.textContent = `${Math.floor(t * 2) % 2 ? "●" : "○"} REC  ${p2(Math.floor(s / 3600))}:${p2(Math.floor(s / 60) % 60)}:${p2(s % 60)}`; }
+  const gr = ROOMS[roomOf(zt)].grade, gk = Math.min(1, dt * 1.5);
+  grade.uniforms.uTint.value.lerp(_tint.set(gr[0], gr[1], gr[2]), gk); grade.uniforms.uSat.value += (gr[3] - grade.uniforms.uSat.value) * gk;
+  grade.uniforms.uVig.value = .35 + .25 * exert;   // winded: the edges of the view close in
+  if (mode !== lastMode) { lastMode = mode; glitch = Math.max(glitch, 1); }   // arriving somewhere new: the tape tears for a moment
+  glitch = Math.max(0, glitch - dt * .7); grade.uniforms.uGlitch.value = Math.min(1, glitch) ** 2;
+  focusTick(dt);
+  if (vhs) {
+    if (live) tapeSec += dt;
+    if (Math.abs(tapeSec - tapeSaved) > 5) { tapeSaved = tapeSec; try { localStorage.setItem("bk-tape", tapeSec.toFixed(1)); } catch {} }
+    const s = Math.floor(tapeSec), p2 = n => String(n).padStart(2, "0"), now = new Date();
+    const stamp = `${["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"][now.getMonth()]}.${p2(now.getDate())} 1996  ${p2(now.getHours())}:${p2(now.getMinutes())}`;   // the camcorder's clock was never set past 1996
+    recEl.innerHTML = `${live ? (Math.floor(t * 2) % 2 ? "●" : "○") + " REC" : "❚❚ PAUSE"}  ${p2(Math.floor(s / 3600))}:${p2(Math.floor(s / 60) % 60)}:${p2(s % 60)}<br>${stamp}`;
+  }
   floor.position.set(Math.round(P.x / FL) * FL, 0, Math.round(P.z / FL) * FL);
   ceil.position.x = Math.round(P.x / S) * S; ceil.position.z = Math.round(P.z / S) * S;
   const fl = .65 + .35 * Math.sin(t * 2.2) * Math.sin(t * 1.3 + 1);   // slow pulse, not a strobe
   exitKind === "ts" ? exitMat.color.setRGB(.42, .48, .54) : exitKind === "r02" ? exitMat.color.setRGB(.96, .92, .88) : exitKind === "ice" ? exitMat.color.setRGB(.74, .9, 1) : exitKind === "sub05" ? exitMat.color.setRGB(.22, .75, .95) : exitMat.color.setScalar(fl * 2.2); exitLight.intensity = exitEdge && exitKind !== "ts" ? 9 * fl : 0;                     // the flickering wall
   updateAmbience(zt, dt, t);
-  hud.textContent = mode === "memory" ? Memory07.hud() : mode === "base" ? "LEVEL 1 · ALPHA 基地 · R 重新開始" : mode === "station" ? `LEVEL 0.1 · 天頂站 · ${tsLevel + 1}F · ${[21, -41, 63, 18][zt - 9]}°C` : mode === "remodel" ? remodelHud() : mode === "ice" ? iceHud() : mode === "infirmary" ? infirmaryHud() : "LEVEL 0";
+  const hudText = mode === "memory" ? Memory07.hud() : mode === "base" ? "LEVEL 1 · ALPHA 基地 · R 重新開始" : mode === "station" ? `LEVEL 0.1 · 天頂站 · ${tsLevel + 1}F · ${[21, -41, 63, 18][zt - 9]}°C` : mode === "remodel" ? remodelHud() : mode === "ice" ? iceHud() : mode === "infirmary" ? infirmaryHud() : "LEVEL 0";
+  // the status line shows when something on it changes (or while Tab is held), then fades: the screen stays the view
+  if (hudText !== hud.textContent) { hud.textContent = hudText; hudShow = 5; }
+  hudShow -= dt; hud.style.opacity = keys.Tab || hudShow > 0 || !live ? .55 : 0;
   renderer.toneMapping = THREE.NeutralToneMapping;
   expo += (1 - expo) * Math.min(1, dt * .9);
   // the tubes stutter with the hum: a hum surge dips the light in uneven blinks, otherwise a faint unsteady shimmer

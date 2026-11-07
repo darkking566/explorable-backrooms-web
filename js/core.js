@@ -190,30 +190,58 @@ gtao.blendMaterial.needsUpdate = true;
 const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), .45, .5, 1.1);   // threshold above any lit wall: only panels and the exit glow
 const grade = new ShaderPass({
   uniforms: { tDiffuse: { value: null }, uTime: { value: 0 }, uGrain: { value: .05 }, uAberr: { value: .0015 }, uVig: { value: .35 },
-    uBarrel: { value: .08 }, uEdge: { value: .006 }, uMotion: { value: new THREE.Vector2() }, uVHS: { value: 0 } },
+    uBarrel: { value: .08 }, uEdge: { value: .006 }, uMotion: { value: new THREE.Vector2() }, uVHS: { value: 0 },
+    uTint: { value: new THREE.Vector3(1, 1, 1) }, uSat: { value: 1 }, uGlitch: { value: 0 },
+    tDepth: { value: gtao.depthTexture }, tFocus: { value: null }, uDof: { value: .006 }, uNear: { value: camera.near }, uFar: { value: camera.far } },
   vertexShader: "varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }",
-  fragmentShader: `uniform sampler2D tDiffuse; uniform float uTime, uGrain, uAberr, uVig, uBarrel, uEdge, uVHS; uniform vec2 uMotion; varying vec2 vUv;
+  fragmentShader: `uniform sampler2D tDiffuse, tDepth, tFocus; uniform float uTime, uGrain, uAberr, uVig, uBarrel, uEdge, uVHS, uSat, uGlitch, uDof, uNear, uFar; uniform vec2 uMotion; uniform vec3 uTint; varying vec2 vUv;
     float h(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
     vec3 tap(vec2 uv, vec2 o) { return vec3(texture2D(tDiffuse, uv + o).r, texture2D(tDiffuse, uv).g, texture2D(tDiffuse, uv - o).b); }
+    float vz(vec2 p) { return uNear * uFar / (uFar - texture2D(tDepth, p).x * (uFar - uNear)); }
     void main() {
       vec2 d = vUv - .5; float r2 = dot(d, d);
       vec2 uv = .5 + d * (1. + uBarrel * r2) / (1. + uBarrel * .5);   // barrel lens: the corners stay put, the middle bulges a little
+      if (uGlitch > 0.) {                                                // crossing between levels: the signal tears in blocks and rolls
+        float row = floor(vUv.y * 18.), blk = h(vec2(row, floor(uTime * 15.)));
+        uv.x += uGlitch * (step(.6, blk) * (blk - .8) * .25 + (h(vec2(floor(vUv.y * 300.), uTime)) - .5) * .02);
+        uv.y = fract(uv.y + uGlitch * uGlitch * .3 * sin(uTime * 3.));
+      }
       if (uVHS > 0.) {                                                   // camcorder: a slow tracking band and per-line wobble
         float band = exp(-pow((fract(uTime * .05) - vUv.y) * 30., 2.));
         uv.x += uVHS * (band * .012 + (h(vec2(floor(vUv.y * 240.), floor(uTime * 24.))) - .5) * .0008);
       }
-      vec2 o = d * uAberr * r2 * 4. + vec2(uVHS * .002, 0.);           // colour fringes grow toward the edges, none in the centre
+      vec2 o = d * uAberr * r2 * 4. + vec2(uVHS * .002 + uGlitch * .012, 0.);   // colour fringes grow toward the edges, none in the centre
       vec2 bv = uMotion + d * r2 * uEdge * 4.;                          // smear along a fast turn, and a soft edge like a cheap lens
       vec3 c = vec3(0.);
       for (int i = -2; i <= 2; i++) c += tap(uv + bv * float(i) * .5, o);
       c /= 5.;
+      // autofocus: focused on something within arm's reach, the room behind it goes soft
+      float fz = texture2D(tFocus, vec2(.5)).r, coc = uDof * clamp(1. - fz / vz(uv), 0., 1.) * smoothstep(2.2, .6, fz);
+      if (coc > .0004) { vec3 b = vec3(0.); for (int i = 0; i < 8; i++) { float a = float(i) * .785398; b += texture2D(tDiffuse, uv + vec2(cos(a), sin(a)) * coc).rgb; } c = mix(c, b / 8., clamp(coc * 400., 0., 1.)); }
+      c *= uTint; c = mix(vec3(dot(c, vec3(.3, .59, .11))), c, uSat);   // each level's colour cast
       if (uVHS > 0.) { c = mix(c, vec3(dot(c, vec3(.3, .59, .11))), .25 * uVHS); c *= 1. - uVHS * .1 * (.5 + .5 * sin(vUv.y * 900.)); }
       c *= 1. - uVig * smoothstep(.1, .55, r2);
-      c += (h(vUv * 1000. + fract(uTime * 7.3)) - .5) * (uGrain + uVHS * .04) * (1.2 - c);   // grain shows most in the shadows, like film
+      c += (h(vUv * 1000. + fract(uTime * 7.3)) - .5) * (uGrain + uVHS * .04 + uGlitch * .5) * (1.2 - c);   // grain shows most in the shadows, like film
       gl_FragColor = vec4(c, 1.);
     }`,
 });
 composer.addPass(new RenderPass(scene, camera)); composer.addPass(gtao); composer.addPass(bloom); composer.addPass(new OutputPass()); composer.addPass(grade);
+// the autofocus distance lives in a 1x1 target, eased each frame toward the nearest depth around the centre of the view (last frame's depth)
+const focusRT = [0, 1].map(() => new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, depthBuffer: false }));
+const focusMat = new THREE.ShaderMaterial({
+  uniforms: { tDepth: { value: gtao.depthTexture }, tPrev: { value: null }, uK: { value: .1 }, uNear: { value: camera.near }, uFar: { value: camera.far } },
+  vertexShader: "void main() { gl_Position = vec4(position.xy, 0., 1.); }",
+  fragmentShader: `uniform sampler2D tDepth, tPrev; uniform float uK, uNear, uFar;
+    float z(vec2 p) { return uNear * uFar / (uFar - texture2D(tDepth, p).x * (uFar - uNear)); }
+    void main() { float f = min(min(z(vec2(.5)), z(vec2(.47, .5))), min(z(vec2(.53, .5)), z(vec2(.5, .47)))); gl_FragColor = vec4(mix(texture2D(tPrev, vec2(.5)).r, f, uK), 0., 0., 1.); }`,
+});
+const focusQuad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), focusMat), focusCam = new THREE.Camera(); focusQuad.frustumCulled = false;
+let focusI = 0;
+function focusTick(dt) {
+  focusMat.uniforms.tPrev.value = focusRT[focusI].texture; focusI ^= 1; focusMat.uniforms.uK.value = Math.min(1, dt * 3.5);   // a beat behind, like a real lens hunting
+  renderer.setRenderTarget(focusRT[focusI]); renderer.render(focusQuad, focusCam); renderer.setRenderTarget(null);
+  grade.uniforms.tFocus.value = focusRT[focusI].texture;
+}
 composer.setPixelRatio(MAX_PR); composer.setSize(innerWidth, innerHeight);
 addEventListener("resize", () => {
   camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
