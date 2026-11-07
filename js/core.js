@@ -313,7 +313,12 @@ function patch(mat, key, { pits, holes, basinCut } = {}) {
   mat.customProgramCacheKey = () => key;      // the patched programs differ, but their onBeforeCompile source is the same
   mat.onBeforeCompile = sh => {
     sh.uniforms.uTint = { value: tintTex };
-    let decl = "varying vec3 vWP;\nuniform sampler2D uTint;", cut = `vec2 wp = mod(vWP.xz, vec2(${WS}.0, ${DS}.0));\n`;   // the world wraps, so the floor and ceiling do too
+    // grime that never tiles: damp, trodden patches on the carpet; a few water-stained ceiling tiles, picked per tile by hash
+    const grime = key === "floor"
+      ? "float gn = bkN(wp * .35) * .6 + bkN(wp * 1.7) * .4; diffuseColor.rgb *= 1.0 - .3 * smoothstep(.58, .85, gn);"
+      : `vec2 tc = floor(wp / ${S}.0); if (bkH(tc) > .86) { vec2 tf = fract(wp / ${S}.0) - .5 - (vec2(bkH(tc + 7.0), bkH(tc + 3.0)) - .5) * .4;
+         diffuseColor.rgb *= mix(vec3(.6, .48, .28), vec3(1.0), smoothstep(.12, .42, length(tf) + .1 * bkN(wp * 5.0))); }`;
+    let decl = "varying vec3 vWP;\nuniform sampler2D uTint;\nfloat bkH(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }\nfloat bkN(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f); return mix(mix(bkH(i), bkH(i + vec2(1, 0)), f.x), mix(bkH(i + vec2(0, 1)), bkH(i + 1.0), f.x), f.y); }", cut = `vec2 wp = mod(vWP.xz, vec2(${WS}.0, ${DS}.0));\n`;   // the world wraps, so the floor and ceiling do too
     const rects = (name, arr) => { sh.uniforms[name] = { value: arr }; decl += `\nuniform vec4 ${name}[${arr.length}];`; cut += `for (int i = 0; i < ${arr.length}; i++) { vec4 p = ${name}[i]; if (wp.x > p.x && wp.x < p.z && wp.y > p.y && wp.y < p.w) discard; }\n`; };
     if (pits) rects("uPits", pitRects);
     if (holes) rects("uHoles", ceilHoles);
@@ -321,7 +326,7 @@ function patch(mat, key, { pits, holes, basinCut } = {}) {
     sh.vertexShader = sh.vertexShader.replace("#include <common>", "#include <common>\nvarying vec3 vWP;")
       .replace("#include <begin_vertex>", "#include <begin_vertex>\nvWP = (modelMatrix * vec4(transformed, 1.0)).xyz;");
     sh.fragmentShader = sh.fragmentShader.replace("#include <common>", "#include <common>\n" + decl)
-      .replace("#include <map_fragment>", `#include <map_fragment>\n diffuseColor.rgb *= 2.0 * texture2D(uTint, wp / vec2(${WS}.0, ${DS}.0)).rgb;`)
+      .replace("#include <map_fragment>", `#include <map_fragment>\n diffuseColor.rgb *= 2.0 * texture2D(uTint, wp / vec2(${WS}.0, ${DS}.0)).rgb;\n${grime}`)
       .replace("void main() {", "void main() {\n" + cut);
   };
 }
