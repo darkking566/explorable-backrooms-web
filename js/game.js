@@ -583,7 +583,6 @@ renderer.setAnimationLoop(() => {
   grade.uniforms.uVig.value = .35 + .25 * exert;   // winded: the edges of the view close in
   if (mode !== lastMode) { lastMode = mode; glitch = Math.max(glitch, 1); }   // arriving somewhere new: the tape tears for a moment
   glitch = Math.max(0, glitch - dt * .7); grade.uniforms.uGlitch.value = Math.min(1, glitch) ** 2;
-  focusTick(dt);
   if (vhs) {
     if (live) tapeSec += dt;
     if (Math.abs(tapeSec - tapeSaved) > 5) { tapeSaved = tapeSec; try { localStorage.setItem("bk-tape", tapeSec.toFixed(1)); } catch {} }
@@ -609,6 +608,7 @@ renderer.setAnimationLoop(() => {
   gtao.blendMaterial.uniforms.uFog.value = scene.fog.density;
   grade.uniforms.uTime.value = t; grade.uniforms.uGrain.value = .05 + .05 * anom + .04 * redK; grade.uniforms.uAberr.value = .0015 + .004 * redK;
   composer.render();
+  focusTick(dt);   // after the frame: GTAO must allocate its depth texture before anything else samples it, or it is set up as a plain texture and AO goes black
   adaptResolution();
 });
 // dynamic resolution: drop the pixel ratio when frames run long, creep back up when they're quick again.

@@ -192,7 +192,7 @@ const grade = new ShaderPass({
   uniforms: { tDiffuse: { value: null }, uTime: { value: 0 }, uGrain: { value: .05 }, uAberr: { value: .0015 }, uVig: { value: .35 },
     uBarrel: { value: .08 }, uEdge: { value: .006 }, uMotion: { value: new THREE.Vector2() }, uVHS: { value: 0 },
     uTint: { value: new THREE.Vector3(1, 1, 1) }, uSat: { value: 1 }, uGlitch: { value: 0 },
-    tDepth: { value: gtao.depthTexture }, tFocus: { value: null }, uDof: { value: .006 }, uNear: { value: camera.near }, uFar: { value: camera.far } },
+    tDepth: { value: null }, tFocus: { value: null }, uDof: { value: .006 }, uNear: { value: camera.near }, uFar: { value: camera.far } },
   vertexShader: "varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }",
   fragmentShader: `uniform sampler2D tDiffuse, tDepth, tFocus; uniform float uTime, uGrain, uAberr, uVig, uBarrel, uEdge, uVHS, uSat, uGlitch, uDof, uNear, uFar; uniform vec2 uMotion; uniform vec3 uTint; varying vec2 vUv;
     float h(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
@@ -226,6 +226,9 @@ const grade = new ShaderPass({
     }`,
 });
 composer.addPass(new RenderPass(scene, camera)); composer.addPass(gtao); composer.addPass(bloom); composer.addPass(new OutputPass()); composer.addPass(grade);
+// set after construction: ShaderPass clones its uniforms, and a cloned depth texture shares GTAO's GPU storage but not its resizes,
+// so after a resolution change GTAO's framebuffer goes incomplete and the AO turns into black blotches
+grade.uniforms.tDepth.value = gtao.depthTexture;
 // the autofocus distance lives in a 1x1 target, eased each frame toward the nearest depth around the centre of the view (last frame's depth)
 const focusRT = [0, 1].map(() => new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, depthBuffer: false }));
 const focusMat = new THREE.ShaderMaterial({
