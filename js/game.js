@@ -46,7 +46,7 @@ function say(text, ms = 4000) {
 }
 
 // ---------- audio: fluctuating fluorescent hum, whispers, scratching behind walls ----------
-let actx, humGain, noiseBuf, exitGain, exitPan, bus;
+let actx, humGain, noiseBuf, exitGain, exitPan, bus, farBus, exitF, breathGain;
 function startAudio() {
   if (actx) return; actx = new AudioContext();
   // every sound goes through one bus with a short room reverb: a generated decaying-noise impulse, so no audio files
@@ -54,6 +54,8 @@ function startAudio() {
   const verb = actx.createConvolver(), wet = actx.createGain(), ir = actx.createBuffer(2, actx.sampleRate * 1.8, actx.sampleRate);
   for (let c = 0; c < 2; c++) { const d = ir.getChannelData(c); for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 3.5); }
   verb.buffer = ir; wet.gain.value = .32; bus.connect(verb); verb.connect(wet); wet.connect(actx.destination);
+  // far-off sounds: mostly reverb, a little dry, so they seem to come from rooms away
+  farBus = actx.createGain(); const farDry = actx.createGain(); farDry.gain.value = .25; farBus.connect(farDry); farDry.connect(actx.destination); farBus.connect(verb);
   const out = actx.createGain(); out.gain.value = .12; out.connect(bus); humGain = out;
   [60, 120, 180, 240].forEach((f, n) => {
     const o = actx.createOscillator(), g = actx.createGain();
@@ -65,8 +67,11 @@ function startAudio() {
   const f = actx.createBiquadFilter(); f.type = "bandpass"; f.frequency.value = 3500; f.Q.value = 3;
   const g = actx.createGain(); g.gain.value = .05; n.connect(f); f.connect(g); g.connect(out); n.start();
   // the flickering wall buzzes, louder the closer it is
-  const eo = actx.createOscillator(), ef = actx.createBiquadFilter(); eo.type = "sawtooth"; eo.frequency.value = 97; ef.type = "lowpass"; ef.frequency.value = 600;
+  const eo = actx.createOscillator(), ef = actx.createBiquadFilter(); eo.type = "sawtooth"; eo.frequency.value = 97; ef.type = "lowpass"; ef.frequency.value = 600; exitF = ef;
   exitGain = actx.createGain(); exitGain.gain.value = 0; exitPan = actx.createStereoPanner(); eo.connect(ef); ef.connect(exitGain); exitGain.connect(exitPan); exitPan.connect(bus); eo.start();
+  // breathing: a looped breath-band noise whose gain the loop shapes into inhales and exhales as you tire
+  const bs = actx.createBufferSource(), bf = actx.createBiquadFilter(); bs.buffer = noiseBuf; bs.loop = true; bf.type = "bandpass"; bf.frequency.value = 1000; bf.Q.value = .6;
+  breathGain = actx.createGain(); breathGain.gain.value = 0; bs.connect(bf); bf.connect(breathGain); breathGain.connect(bus); bs.start();
 }
 function footstep(wet) {
   if (!actx) return;
@@ -80,18 +85,33 @@ function footstep(wet) {
   if (wet) noiseBurst(420, 1.2, .22, 1, .2, .2);   // splash through the liquid
 }
 // pulses of band-passed noise from a random side: freq/Q set the character, pulses x gap the rhythm
-function noiseBurst(freq, q, vol, pulses, len, gap, side = Math.random() * 2 - 1) {
+function noiseBurst(freq, q, vol, pulses, len, gap, side = Math.random() * 2 - 1, dest = bus) {
   if (!actx) return;
   const src = actx.createBufferSource(); src.buffer = noiseBuf; src.loop = true;
   const f = actx.createBiquadFilter(); f.type = "bandpass"; f.frequency.value = freq; f.Q.value = q;
   const g = actx.createGain(), pan = actx.createStereoPanner(); pan.pan.value = side;
   const t0 = actx.currentTime; g.gain.setValueAtTime(0, t0);
   for (let k = 0; k < pulses; k++) { const t = t0 + k * gap; g.gain.linearRampToValueAtTime(vol, t + len * .3); g.gain.linearRampToValueAtTime(0, t + len); }
-  src.connect(f); f.connect(g); g.connect(pan); pan.connect(bus);
+  src.connect(f); f.connect(g); g.connect(pan); pan.connect(dest);
   src.start(t0); src.stop(t0 + pulses * gap + len);
 }
 const whisper = () => noiseBurst(1100 + Math.random() * 600, 7, .1, 5 + Math.floor(Math.random() * 4), .3, .35);
 const scratch = () => noiseBurst(2600, 2, .16, 3 + Math.floor(Math.random() * 3), .12, .2);
+// rooms away: a door slamming, or someone else's footsteps passing and fading; low, dull, and mostly echo
+const farSlam = () => noiseBurst(160 + Math.random() * 80, .9, .5, 1, .18, 0, Math.random() * 2 - 1, farBus);
+const farSteps = () => noiseBurst(220, 1.2, .22, 5 + Math.floor(Math.random() * 6), .08, .48 + Math.random() * .15, Math.random() * 2 - 1, farBus);
+// solid walls crossed on the straight line between two points in Level 0, for muffling sounds behind them
+function wallsBetween(x0, z0, x1, z1) {
+  const m = (v, M) => ((v % M) + M) % M, steps = Math.ceil(Math.hypot(x1 - x0, z1 - z0) / .5);
+  let n = 0, pi = Math.floor(x0 / S), pj = Math.floor(z0 / S);
+  for (let k = 1; k <= steps; k++) {
+    const i = Math.floor((x0 + (x1 - x0) * k / steps) / S), j = Math.floor((z0 + (z1 - z0) * k / steps) / S);
+    if (i !== pi && edgeKind("E", m(Math.min(i, pi), W), m(pj, D)) === 1) n++;
+    if (j !== pj && edgeKind("S", m(i, W), m(Math.min(j, pj), D)) === 1) n++;
+    pi = i; pj = j;
+  }
+  return n;
+}
 function heartbeat() {                       // lub-dub, for the red room
   if (!actx) return;
   [0, .22].forEach((dt, n) => { const o = actx.createOscillator(), g = actx.createGain(), t0 = actx.currentTime + dt; o.frequency.value = 55 - n * 8; g.gain.setValueAtTime(0, t0); g.gain.linearRampToValueAtTime(.45 - n * .15, t0 + .02); g.gain.exponentialRampToValueAtTime(.001, t0 + .18); o.connect(g); g.connect(bus); o.start(t0); o.stop(t0 + .2); });
@@ -331,7 +351,11 @@ function mapFrame() {
 // ---------- loop ----------
 const clock = new THREE.Clock(), hud = document.getElementById("hud");
 let bob = 0, lastStep = 0;
-let runK = 0, roll = 0, camYaw = P.yaw, camPitch = P.pitch, expo = 1, runNow = false, strafe = 0, dipT = 0;
+let runK = 0, roll = 0, camYaw = P.yaw, camPitch = P.pitch, expo = 1, runNow = false, strafe = 0, dipT = 0, exert = 0, breathPh = 0, vhs = false;
+// C: camcorder look, with a REC stamp in the corner
+const recEl = document.createElement("div"); recEl.style.cssText = "position:fixed;top:14px;left:16px;font:15px monospace;color:#fff;text-shadow:0 0 3px #000;z-index:1;pointer-events:none;display:none"; document.body.appendChild(recEl);
+const recStart = Date.now();
+addEventListener("keydown", e => { if (e.code === "KeyC" && !e.repeat && !docOpen && !mapOpen && e.target.tagName !== "INPUT") { vhs = !vhs; recEl.style.display = vhs ? "block" : "none"; } });
 // dust drifting in the light: a box of points that wraps around the camera, so it is everywhere without being many
 const DUST = 260, DB = 10, dustPos = new Float32Array(DUST * 3).map(() => Math.random() * DB);
 const dustGeo = new THREE.BufferGeometry(); dustGeo.setAttribute("position", new THREE.BufferAttribute(dustPos, 3));
@@ -418,13 +442,15 @@ renderer.setAnimationLoop(() => {
   redv.style.opacity = redK * (.8 + .2 * Math.sin(t * 6));
   // ambient events: whispers, scratching behind walls, hum surging
   if (actx && live) {
-    if (mode !== "memory" && mode !== "base" && mode !== "remodel" && mode !== "ice" && mode !== "infirmary") { eventT -= dt; if (eventT <= 0) { eventT = (14 + Math.random() * 25) * (1 - .55 * anom); Math.random() < .5 ? whisper() : scratch(); } }
+    if (mode !== "memory" && mode !== "base" && mode !== "remodel" && mode !== "ice" && mode !== "infirmary") { eventT -= dt; if (eventT <= 0) { eventT = (14 + Math.random() * 25) * (1 - .55 * anom); const r = Math.random(); r < .35 ? whisper() : r < .65 ? scratch() : r < .85 ? farSteps() : farSlam(); } }
     humT -= dt; if (humT <= 0) { humT = 2 + Math.random() * 6; humLevel = Math.random() < .12 ? 2.8 : .7 + Math.random() * .7; if (humLevel > 2) dipT = .12 + Math.random() * .15; }   // rare ear-splitting surge
     zoneHum += ((mode === "memory" ? (Memory07.eraAt(P.x) === 0 ? .5 : .08) : zt === DARK ? 0 : mode === "base" ? .12 : mode === "ice" ? .2 : mode === "infirmary" ? .1 : (mode === "station" || mode === "remodel") ? 0 : 1) - zoneHum) * Math.min(1, dt * 3);                                // 熄燈區: hum goes silent
     humGain.gain.value = .12 * humLevel * zoneHum;
     if (redK > .3) { beatT -= dt; if (beatT <= 0) { heartbeat(); beatT = .95 - .45 * redK; } }
     const ex = exitEdge ? exitEdge.x - P.x : 0, ez = exitEdge ? exitEdge.z - P.z : 0, ed = Math.hypot(ex, ez) || 1;
-    exitGain.gain.value = exitEdge && exitKind !== "ts" ? Math.max(0, 1 - ed / 36) * .22 : 0;
+    const walls = exitEdge && mode === "map" ? wallsBetween(P.x, P.z, exitEdge.x, exitEdge.z) : 0;   // behind walls the buzz goes dull and quiet
+    exitF.frequency.value = 600 / (1 + 1.5 * walls);
+    exitGain.gain.value = exitEdge && exitKind !== "ts" ? Math.max(0, 1 - ed / 36) * .22 / (1 + .4 * walls) : 0;
     exitPan.pan.value = (ex * Math.cos(P.yaw) - ez * Math.sin(P.yaw)) / ed;   // right-hand vector of the camera is (cos, -sin)
   }
   // the figure: vanishes if looked at for a moment or approached
@@ -442,10 +468,20 @@ renderer.setAnimationLoop(() => {
   camera.position.set(P.x + Math.cos(P.yaw) * sway, P.y + 1.65 + dropY + Math.sin(bob) * (.04 + .02 * runK), P.z - Math.sin(P.yaw) * sway);
   roll += (-strafe * .025 - sway * .15 - roll) * Math.min(1, dt * 6);
   const lag = Math.min(1, dt * 28);
+  const turnX = camYaw, turnY = camPitch;
   if (Math.abs(P.yaw - camYaw) > 1) camYaw = P.yaw; else camYaw += (P.yaw - camYaw) * lag;   // a teleport or respawn snaps instead of swinging
   camPitch += (P.pitch - camPitch) * lag;
   camera.rotation.set(camPitch, camYaw, roll, "YXZ");
   dustTick(dt, t);
+  // a fast turn smears the frame sideways (yaw) or vertically (pitch), like a shutter that's a bit too slow
+  grade.uniforms.uMotion.value.set(THREE.MathUtils.clamp((camYaw - turnX) * .35, -.012, .012), THREE.MathUtils.clamp((turnY - camPitch) * .35, -.012, .012));
+  lampPool(P.x, P.z, dt, mode === "map");
+  // breathing: you get winded while running and settle slowly; inhale louder than exhale
+  exert = Math.max(0, Math.min(1, exert + (runNow ? dt * .12 : -dt * .05)));
+  breathPh += dt * (1.4 + 2.5 * exert);
+  if (breathGain) { const sn = Math.sin(breathPh); breathGain.gain.value = live ? exert * (.07 * Math.max(0, sn) ** 2 + .035 * Math.max(0, -sn) ** 2) : 0; }
+  grade.uniforms.uVHS.value = vhs ? 1 : 0;
+  if (vhs) { const s = Math.floor((Date.now() - recStart) / 1000), p2 = n => String(n).padStart(2, "0"); recEl.textContent = `${Math.floor(t * 2) % 2 ? "●" : "○"} REC  ${p2(Math.floor(s / 3600))}:${p2(Math.floor(s / 60) % 60)}:${p2(s % 60)}`; }
   floor.position.set(Math.round(P.x / FL) * FL, 0, Math.round(P.z / FL) * FL);
   ceil.position.x = Math.round(P.x / S) * S; ceil.position.z = Math.round(P.z / S) * S;
   const fl = .65 + .35 * Math.sin(t * 2.2) * Math.sin(t * 1.3 + 1);   // slow pulse, not a strobe

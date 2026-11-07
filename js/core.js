@@ -189,16 +189,27 @@ gtao.blendMaterial.fragmentShader = `uniform float intensity, uFog, uNear, uFar;
 gtao.blendMaterial.needsUpdate = true;
 const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), .45, .5, 1.1);   // threshold above any lit wall: only panels and the exit glow
 const grade = new ShaderPass({
-  uniforms: { tDiffuse: { value: null }, uTime: { value: 0 }, uGrain: { value: .05 }, uAberr: { value: .0015 }, uVig: { value: .35 } },
+  uniforms: { tDiffuse: { value: null }, uTime: { value: 0 }, uGrain: { value: .05 }, uAberr: { value: .0015 }, uVig: { value: .35 },
+    uBarrel: { value: .08 }, uEdge: { value: .006 }, uMotion: { value: new THREE.Vector2() }, uVHS: { value: 0 } },
   vertexShader: "varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }",
-  fragmentShader: `uniform sampler2D tDiffuse; uniform float uTime, uGrain, uAberr, uVig; varying vec2 vUv;
+  fragmentShader: `uniform sampler2D tDiffuse; uniform float uTime, uGrain, uAberr, uVig, uBarrel, uEdge, uVHS; uniform vec2 uMotion; varying vec2 vUv;
     float h(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
+    vec3 tap(vec2 uv, vec2 o) { return vec3(texture2D(tDiffuse, uv + o).r, texture2D(tDiffuse, uv).g, texture2D(tDiffuse, uv - o).b); }
     void main() {
       vec2 d = vUv - .5; float r2 = dot(d, d);
-      vec2 o = d * uAberr * r2 * 4.;                                    // colour fringes grow toward the edges, none in the centre
-      vec3 c = vec3(texture2D(tDiffuse, vUv + o).r, texture2D(tDiffuse, vUv).g, texture2D(tDiffuse, vUv - o).b);
+      vec2 uv = .5 + d * (1. + uBarrel * r2) / (1. + uBarrel * .5);   // barrel lens: the corners stay put, the middle bulges a little
+      if (uVHS > 0.) {                                                   // camcorder: a slow tracking band and per-line wobble
+        float band = exp(-pow((fract(uTime * .05) - vUv.y) * 30., 2.));
+        uv.x += uVHS * (band * .012 + (h(vec2(floor(vUv.y * 240.), floor(uTime * 24.))) - .5) * .0008);
+      }
+      vec2 o = d * uAberr * r2 * 4. + vec2(uVHS * .002, 0.);           // colour fringes grow toward the edges, none in the centre
+      vec2 bv = uMotion + d * r2 * uEdge * 4.;                          // smear along a fast turn, and a soft edge like a cheap lens
+      vec3 c = vec3(0.);
+      for (int i = -2; i <= 2; i++) c += tap(uv + bv * float(i) * .5, o);
+      c /= 5.;
+      if (uVHS > 0.) { c = mix(c, vec3(dot(c, vec3(.3, .59, .11))), .25 * uVHS); c *= 1. - uVHS * .1 * (.5 + .5 * sin(vUv.y * 900.)); }
       c *= 1. - uVig * smoothstep(.1, .55, r2);
-      c += (h(vUv * 1000. + fract(uTime * 7.3)) - .5) * uGrain * (1.2 - c);   // grain shows most in the shadows, like film
+      c += (h(vUv * 1000. + fract(uTime * 7.3)) - .5) * (uGrain + uVHS * .04) * (1.2 - c);   // grain shows most in the shadows, like film
       gl_FragColor = vec4(c, 1.);
     }`,
 });
@@ -315,7 +326,7 @@ function patch(mat, key, { pits, holes, basinCut } = {}) {
     sh.uniforms.uTint = { value: tintTex };
     // grime that never tiles: damp, trodden patches on the carpet; a few water-stained ceiling tiles, picked per tile by hash
     const grime = key === "floor"
-      ? "float gn = bkN(wp * .35) * .6 + bkN(wp * 1.7) * .4; diffuseColor.rgb *= 1.0 - .3 * smoothstep(.58, .85, gn);"
+      ? "float gn = bkN(wp * .35) * .6 + bkN(wp * 1.7) * .4, wetK = smoothstep(.62, .9, gn); diffuseColor.rgb *= 1.0 - .3 * smoothstep(.58, .85, gn);"
       : `vec2 tc = floor(wp / ${S}.0); if (bkH(tc) > .86) { vec2 tf = fract(wp / ${S}.0) - .5 - (vec2(bkH(tc + 7.0), bkH(tc + 3.0)) - .5) * .4;
          diffuseColor.rgb *= mix(vec3(.6, .48, .28), vec3(1.0), smoothstep(.12, .42, length(tf) + .1 * bkN(wp * 5.0))); }`;
     let decl = "varying vec3 vWP;\nuniform sampler2D uTint;\nfloat bkH(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }\nfloat bkN(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f); return mix(mix(bkH(i), bkH(i + vec2(1, 0)), f.x), mix(bkH(i + vec2(0, 1)), bkH(i + 1.0), f.x), f.y); }", cut = `vec2 wp = mod(vWP.xz, vec2(${WS}.0, ${DS}.0));\n`;   // the world wraps, so the floor and ceiling do too
@@ -327,6 +338,7 @@ function patch(mat, key, { pits, holes, basinCut } = {}) {
       .replace("#include <begin_vertex>", "#include <begin_vertex>\nvWP = (modelMatrix * vec4(transformed, 1.0)).xyz;");
     sh.fragmentShader = sh.fragmentShader.replace("#include <common>", "#include <common>\n" + decl)
       .replace("#include <map_fragment>", `#include <map_fragment>\n diffuseColor.rgb *= 2.0 * texture2D(uTint, wp / vec2(${WS}.0, ${DS}.0)).rgb;\n${grime}`)
+      .replace("#include <roughnessmap_fragment>", "#include <roughnessmap_fragment>\n" + (key === "floor" ? "roughnessFactor = mix(roughnessFactor, .3, wetK);" : ""))   // damp patches go glossy
       .replace("void main() {", "void main() {\n" + cut);
   };
 }
@@ -342,6 +354,25 @@ ceil.rotation.x = Math.PI / 2; ceil.position.y = H; scene.add(ceil);
 
 // ---------- geometry ----------
 const boxGeo = new THREE.BoxGeometry(1, H, 1), panelGeo = new THREE.BoxGeometry(1.4, .04, .55);
+const deadLamp = (i, j) => hash(i, j, 61) < .05;          // stable across rebuilds: the same tubes stay dead
+const deadPanelMat = flat(0x77735f), outletMat = flat(0xe4dec8);
+// a faint shaft of light under each panel: an open cone, brightest at the top, fading at grazing angles and up close
+const coneGeo = new THREE.CylinderGeometry(.55, 1.5, 1, 20, 1, true).translate(0, -.5, 0);
+const coneMat = new THREE.ShaderMaterial({
+  transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
+  uniforms: { uK: { value: .035 } },
+  vertexShader: `varying float vY, vF, vD; void main() {
+    vec4 p = vec4(position, 1.); vec3 n = normal;
+    #ifdef USE_INSTANCING
+      p = instanceMatrix * p; n = mat3(instanceMatrix) * n;
+    #endif
+    vec4 mv = modelViewMatrix * p; vY = uv.y; vD = -mv.z;
+    vF = abs(dot(normalize(normalMatrix * n), normalize(-mv.xyz)));
+    gl_Position = projectionMatrix * mv; }`,
+  fragmentShader: `uniform float uK; varying float vY, vF, vD; void main() {
+    float a = uK * pow(clamp(vY, 0., 1.), 1.6) * vF * vF * smoothstep(.6, 2.5, vD) * exp(-max(vD, 0.) * .045);   // clamp: pow of a tiny negative is NaN, which bloom smears into black blocks
+    gl_FragColor = vec4(vec3(1., .95, .75) * a, 1.); }`,
+});
 const shaftGeo = new THREE.BoxGeometry(PIT_HALF * 2, PIT_DEPTH, PIT_HALF * 2);
 const flatGeo = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), flatDownGeo = new THREE.PlaneGeometry(1, 1).rotateX(Math.PI / 2);
 const sideGeo = new THREE.PlaneGeometry(1, 1);                        // vertical, faces +z
@@ -385,7 +416,7 @@ function buildBlock(b) {
   const g = new THREE.Group(), mk = () => Array.from({ length: VAR }, () => []);
   const plain = mk(), reds = mk(), doorWalls = mk(), darks = [], whites = [], manilas = [], arches = [], frames = [], leaves = [], crates = [], boards = [];
   const glowF = [], glowC = [], redGlowF = [], redGlowC = [], panels = [], redPanels = [], pillars = [], pits = [], basinF = [], basinS = [], liquid = [];
-  const pales = [[], [], []], waits = [[], [], []], slabs = [], vents = [], L = { coolers: [], jugs: [] };
+  const pales = [[], [], []], waits = [[], [], []], slabs = [], vents = [], L = { coolers: [], jugs: [] }, cones = [], outlets = [], deadPanels = [];
   b.props = new Map(); b.mirrors = [];
   const x0 = b.bx * BW, y0 = b.by * BH;
   for (let i = x0; i < x0 + BW; i++) for (let j = y0; j < y0 + BH; j++) {
@@ -411,6 +442,10 @@ function buildBlock(b) {
         if (pal && hi - lo > H + .01) addTall(tallSet(pal, hi - lo, v % 2), [x, (lo + hi) / 2, z, rot, thick, (hi - lo) / H, S + T]);
         else for (let ya = lo; ya < hi - .01; ya += H) { const yb = Math.min(hi, ya + H); to.push([x, (ya + yb) / 2, z, rot, thick, (yb - ya) / H, S + T]); }
         if (!dk) boards.push([x, .07, z, rot, thick + .06, .14 / H, S + T + .04]);
+        if (!dk && hash(i, j, E ? 51 : 52) < .06) {   // a lone power outlet, on one side of the wall
+          const off = (hash(i, j, 53) < .5 ? -1 : 1) * (thick / 2 + .012), a = (hash(i, j, 54) - .5) * (S - 1);
+          outlets.push(E ? [x + off, .32, z + a, 0, .024, .12 / H, .08] : [x + a, .32, z + off, Math.PI / 2, .024, .12 / H, .08]);
+        }
         if (t === WAIT && tt === WAIT && hash(i, j, E ? 47 : 48) < .05) {   // a wall mirror in a white frame (not part of the group: a Reflector can't be cloned)
           const off = (thick + .07) / 2 + .02, m = new Reflector(new THREE.PlaneGeometry(2.6, 1.3), { textureWidth: 512, textureHeight: 256, clipBias: .003, color: 0xc8d0c4, multisample: 2 });
           m.position.set(E ? x - off : x, 1.55, E ? z : z - off); m.rotation.y = E ? -Math.PI / 2 : Math.PI; scene.add(m); b.mirrors.push(m);
@@ -442,10 +477,13 @@ function buildBlock(b) {
     const ch = ceilH(i, j), hh = t === LEDGE ? ledgeH(i, j) : 0, cx0 = (i + .5) * S, cz0 = (j + .5) * S;
     if (hh > 0) slabs.push([cx0, hh / 2, cz0, 0, S, hh / H, S]);        // 台階長廊: every raised cell is a slab
     if (t === LEDGE && hash(i, j, 44) < .18) vents.push([cx0 + (hash(i, j, 45) - .5) * 2, ch - .015, cz0 + (hash(i, j, 46) - .5) * 2, 0, 1.1, 1, .5]);
+    else if ((t === N || t === PIL) && hash(i, j, 44) < .05) vents.push([cx0 + 1.4, ch - .015, cz0 + (hash(i, j, 46) - .5) * 2, 0, 1.1, 1, .5]);   // off-centre, clear of the panel
     if (t === WAIT) waitProps(b, i, j, L);
-    if (lit(i, j)) {
+    if (lit(i, j) && deadLamp(i, j)) { const [px, pz] = panelPos(i, j); deadPanels.push([px, ch - .03, pz, hash(i, j, 4) < .5 ? Math.PI / 2 : 0, 1, 1, 1]); }   // a burnt-out tube: no light, no glow
+    else if (lit(i, j)) {
       const [px, pz] = panelPos(i, j), red = t === RED;
       (red ? redPanels : panels).push([px, ch - .03, pz, hash(i, j, 4) < .5 ? Math.PI / 2 : 0, 1, 1, 1]);
+      if (!red) cones.push([px, ch - .03, pz, 0, 1, ch - .03 - hh, 1]);
       if (!pit(i, j) && !isVoid(i, j)) (red ? redGlowF : glowF).push([px, hh + .03, pz, 0, 6, 1, 6]);   // a floor glow would float over a pit
       (red ? redGlowC : glowC).push([px, ch - .02, pz, 0, 4, 1, 4]);
     }
@@ -466,6 +504,7 @@ function buildBlock(b) {
   for (const [set, list] of tall) inst(g, boxGeo, set, list);
   inst(g, boxGeo, frameMat, frames); inst(g, boxGeo, leafMat, leaves); inst(g, boxGeo, crateMat, crates);
   inst(g, panelGeo, panelMat, panels); inst(g, panelGeo, redPanelMat, redPanels);
+  inst(g, panelGeo, deadPanelMat, deadPanels); inst(g, coneGeo, coneMat, cones); inst(g, boxGeo, outletMat, outlets);
   inst(g, flatGeo, glowMat, glowF); inst(g, flatDownGeo, glowMat, glowC); inst(g, flatGeo, redGlowMat, redGlowF); inst(g, flatDownGeo, redGlowMat, redGlowC);
   inst(g, boxGeo, pillarMat, pillars);
   inst(g, shaftGeo, shaftMat, pits);
@@ -653,6 +692,27 @@ const hemi = new THREE.HemisphereLight(0xfff2a0, 0xa08a3a, .55); scene.add(hemi)
 // No lights that follow the player: every district is lit the same wherever you stand. The ambient light carries the
 // walls, and each lit panel has its painted glow pool (see glowMat). Only the exit wall casts a real light.
 const exitLight = new THREE.PointLight(0xffffff, 0, 30, 1.4); scene.add(exitLight);
+// ...except a few real lights parked at the panels nearest the player, for glints on the bumped wallpaper and the wet
+// carpet. They're weak next to the ambient light, and fade out before moving to a new panel, so nothing pops.
+// The lights always exist (intensity 0 when unused): changing the light count would recompile every material.
+const LAMPS = Array.from({ length: 5 }, () => { const l = new THREE.PointLight(0xfff0c0, 0, 9, 2); l.userData.want = 0; scene.add(l); return l; });
+function lampPool(px, pz, dt, on) {
+  const ci = Math.floor(px / S), cj = Math.floor(pz / S), near = [];
+  if (on) for (let i = ci - 3; i <= ci + 3; i++) for (let j = cj - 3; j <= cj + 3; j++) {
+    const ii = ((i % W) + W) % W, jj = ((j % D) + D) % D;           // the world wraps
+    if (!lit(ii, jj) || deadLamp(ii, jj) || cellType(ii, jj) === RED) continue;
+    const [x, z] = panelPos(ii, jj), X = x + (i - ii) * S, Z = z + (j - jj) * S;
+    near.push([Math.hypot(X - px, Z - pz), X, ceilH(ii, jj) - .25, Z]);
+  }
+  near.sort((a, b) => a[0] - b[0]); near.length = Math.min(near.length, LAMPS.length);
+  const free = [];
+  for (const l of LAMPS) {
+    const k = near.findIndex(n => Math.abs(n[1] - l.position.x) < .01 && Math.abs(n[3] - l.position.z) < .01);
+    if (k >= 0) { near.splice(k, 1); l.userData.want = 1; } else { l.userData.want = 0; if (l.intensity < .05) free.push(l); }
+  }
+  for (const l of free) { const n = near.shift(); if (!n) break; l.position.set(n[1], n[2], n[3]); l.userData.want = 1; }
+  for (const l of LAMPS) l.intensity += (l.userData.want * 4 - l.intensity) * Math.min(1, dt * 4);
+}
 // per-district atmosphere: fog colour, fog density, ambient level, ambient colour (the last row is the Alpha base)
 const AMB = [
   [0xb5a13a, .028, 3.6, 0xfff2a0], [0xb5a13a, .028, 3.6, 0xfff2a0], [0xb5a13a, .021, 3.2, 0xfff2a0],
